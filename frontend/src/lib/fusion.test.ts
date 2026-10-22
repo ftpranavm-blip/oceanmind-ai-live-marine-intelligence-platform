@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   computeCorrelations,
   fusionIndexBand,
   fusionIndexPercent,
   fusionRiskScore,
+  globalMarineRiskIndex,
   isCoralBleaching,
   isCoralEmergency,
   isHighRiskAIS,
@@ -15,7 +17,6 @@ import {
   moduleRiskAverages,
   selectRecommendationScenario,
   shouldGenerateRecommendations,
-  simpleGlobalRiskIndex,
   weightedGlobalRiskIndex,
   type FusionInputs,
 } from './fusion';
@@ -57,10 +58,6 @@ const allLow: FusionInputs = {
 describe('regression guards (behavior that is correct today)', () => {
   it('module averages are 0 with no data', () => {
     expect(moduleRiskAverages(empty)).toEqual({ satellite: 0, coral: 0, ais: 0, iot: 0, vessel: 0 });
-  });
-
-  it('Command Center index is the mean of the four module averages', () => {
-    expect(simpleGlobalRiskIndex({ satellite: 2, coral: 4, ais: 6, iot: 8 })).toBe(5);
   });
 
   it('MPA violation needs the MPA flag and more than 5 vessels', () => {
@@ -166,5 +163,35 @@ describe('bug 1: fusion mixes 0-10 module scores with 0-1 thresholds', () => {
     };
     const types = computeCorrelations(high, 1).alerts.map(a => a.correlationType);
     expect(types).toEqual(expect.arrayContaining(['illegal_fishing', 'reef_emergency', 'pollution_correlation', 'climate_pollution']));
+  });
+});
+
+// One "Global Marine Risk Index" for every page (Command Center used a plain
+// mean of four modules; Fusion used a weighted sum that includes vessels).
+describe('shared Global Marine Risk Index', () => {
+  it('is 0 with no data', () => {
+    expect(globalMarineRiskIndex(empty)).toBe(0);
+  });
+
+  it('is 10 when every input is at its maximum', () => {
+    expect(globalMarineRiskIndex(allMax)).toBeCloseTo(10);
+  });
+
+  it('weights satellite 0.25, coral 0.2, AIS 0.25, IoT 0.15, vessels 0.15 (vessels scaled to 0-10)', () => {
+    const inputs: FusionInputs = {
+      satellite: [sat({ riskScore: 4 })],
+      coral: [coral(6, 0, 0)],
+      ais: [{ riskScore: 8 }],
+      iot: [{ riskScore: 2, dataType: 'Temperature' }],
+      vessels: [{ riskScore: 0.5 }],
+    };
+    // 4*0.25 + 6*0.2 + 8*0.25 + 2*0.15 + 5*0.15 = 5.25
+    expect(globalMarineRiskIndex(inputs)).toBeCloseTo(5.25);
+  });
+
+  it.each(['CommandCenter.tsx', 'FusionModule.tsx'])('%s uses the shared function', page => {
+    const source = readFileSync(new URL(`../pages/${page}`, import.meta.url), 'utf8');
+    expect(source).toMatch(/globalMarineRiskIndex\(/);
+    expect(source).not.toMatch(/simpleGlobalRiskIndex|weightedGlobalRiskIndex\(/);
   });
 });

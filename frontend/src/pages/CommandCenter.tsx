@@ -5,7 +5,7 @@ import { Satellite, Waves, Ship, Thermometer, Network, AlertTriangle, TrendingUp
 import { useNavigate } from '@tanstack/react-router';
 import { Progress } from '@/components/ui/progress';
 import { averageRisk, moduleSeverityBand } from '../lib/risk';
-import { simpleGlobalRiskIndex } from '../lib/fusion';
+import { globalMarineRiskIndex } from '../lib/fusion';
 
 export default function CommandCenter() {
   const navigate = useNavigate();
@@ -27,11 +27,12 @@ export default function CommandCenter() {
   const avgCoralRisk = averageRisk(coralData);
   const avgAISRisk = averageRisk(aisData);
   const avgIoTRisk = averageRisk(iotData);
-  const globalRiskIndex = simpleGlobalRiskIndex({
-    satellite: avgSatelliteRisk,
-    coral: avgCoralRisk,
-    ais: avgAISRisk,
-    iot: avgIoTRisk,
+  const globalRiskIndex = globalMarineRiskIndex({
+    satellite: satelliteData,
+    coral: coralData,
+    ais: aisData,
+    iot: iotData,
+    vessels,
   });
   const globalRiskBand = moduleSeverityBand(globalRiskIndex);
 

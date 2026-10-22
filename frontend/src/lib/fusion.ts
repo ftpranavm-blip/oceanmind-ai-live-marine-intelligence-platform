@@ -59,7 +59,7 @@ export function moduleRiskAverages(inputs: FusionInputs): ModuleRiskAverages {
   };
 }
 
-// Fusion Engine "Global Marine Risk Index": weighted sum of module averages.
+// Weighted sum of module averages; use globalMarineRiskIndex from pages.
 export function weightedGlobalRiskIndex(avg: ModuleRiskAverages): number {
   return (
     avg.satellite * 0.25 +
@@ -70,9 +70,9 @@ export function weightedGlobalRiskIndex(avg: ModuleRiskAverages): number {
   );
 }
 
-// Command Center "Global Marine Risk Index": plain mean of the four module averages.
-export function simpleGlobalRiskIndex(avg: Omit<ModuleRiskAverages, 'vessel'>): number {
-  return (avg.satellite + avg.coral + avg.ais + avg.iot) / 4;
+// The "Global Marine Risk Index" shown on every page (0-10).
+export function globalMarineRiskIndex(inputs: FusionInputs): number {
+  return weightedGlobalRiskIndex(moduleRiskAverages(inputs));
 }
 
 export function fusionRiskScore(avg: ModuleRiskAverages): number {

@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AIRecommendations, ActionStep, Stakeholder, ConfidenceLevel } from '../backend';
 import {
   moduleRiskAverages,
-  weightedGlobalRiskIndex,
+  globalMarineRiskIndex,
   fusionRiskScore as computeFusionRiskScore,
   fusionIndexBand,
   fusionIndexPercent,
@@ -60,7 +60,7 @@ export default function FusionModule() {
   const avgVesselRisk = averages.vessel;
 
   // Calculate Global Marine Risk Index with fusion weighting
-  const unifiedRiskIndex = weightedGlobalRiskIndex(averages);
+  const unifiedRiskIndex = globalMarineRiskIndex(fusionInputs);
   const unifiedRiskBand = fusionIndexBand(unifiedRiskIndex);
 
   // Calculate fusion risk score
