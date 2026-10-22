@@ -9,32 +9,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Waves, Thermometer, AlertTriangle, Upload, Satellite } from 'lucide-react';
 import { toast } from 'sonner';
-import { coralRiskScore, isCoralAlert } from '../lib/risk';
-import { CRW_EXTRACT, crwReadingForRegion, type CoralReadingFromCrw } from '../lib/crwReading';
-
-// Where the values in the form came from; shown next to the score and saved as dataType.
-type CoralSource = { kind: 'manual' } | { kind: 'simulated' } | { kind: 'crw'; crw: CoralReadingFromCrw };
-
-const sourceLabel = (source: CoralSource) =>
-  source.kind === 'crw' ? source.crw.label : source.kind === 'simulated' ? 'Simulated' : 'Manual entry';
-
-const sourceDataType = (source: CoralSource) =>
-  source.kind === 'crw' ? source.crw.dataType : source.kind === 'simulated' ? 'Simulated image' : 'Manual entry';
+import { isCoralAlert } from '../lib/risk';
+import { CRW_EXTRACT, crwReadingForRegion } from '../lib/crwReading';
+import {
+  changeRegion,
+  coralRisk,
+  coralSavePayload,
+  editValue,
+  initialCoralForm,
+  loadCrwReading,
+  setSimulatedReading,
+  sourceLabel,
+} from '../lib/coralForm';
 
 export default function CoralModule() {
-  const [bleachingProb, setBleachingProb] = useState('0');
-  const [thermalStress, setThermalStress] = useState('0');
+  const [form, setForm] = useState(initialCoralForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState('great_barrier_reef');
-  const [source, setSource] = useState<CoralSource>({ kind: 'manual' });
 
   const saveAnalysis = useSaveCoralAnalysis();
   const { data: analyses = [], isLoading } = useGetCoralAnalysisHistory();
   const { data: coralRegions = [] } = useGetCoralRegionCoordinates();
 
-  const calculateRiskScore = () =>
-    coralRiskScore(parseFloat(bleachingProb) || 0, parseFloat(thermalStress) || 0);
+  const calculateRiskScore = () => coralRisk(form);
+  const selectRegion = (regionId: string) => setForm(f => changeRegion(f, regionId));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,58 +62,41 @@ export default function CoralModule() {
     const simulatedBleaching = (Math.random() * 10).toFixed(1);
     const simulatedStress = (Math.random() * 10).toFixed(1);
 
-    setBleachingProb(simulatedBleaching);
-    setThermalStress(simulatedStress);
-    setSource({ kind: 'simulated' });
+    setForm(f => setSimulatedReading(f, simulatedBleaching, simulatedStress));
 
     setAnalyzing(false);
     toast.success('Simulated bleaching reading generated.');
   };
 
   // Loads the bundled NOAA CRW extract (ERDDAP blocks browser requests via CORS).
+  const selectedCrw = crwReadingForRegion(form.regionId);
+
   const handleCrwLoad = () => {
-    const crw = crwReadingForRegion(selectedRegion);
-    if (!crw) {
+    if (!selectedCrw) {
       toast.error('No NOAA CRW reading for this region in the bundled extract');
       return;
     }
-    setBleachingProb(crw.bleaching.toFixed(1));
-    setThermalStress(crw.thermalStress.toFixed(1));
-    setSource({ kind: 'crw', crw });
-    toast.success(`Loaded ${crw.label}`);
+    setForm(loadCrwReading);
+    toast.success(`Loaded ${selectedCrw.label}`);
   };
-
-  const selectedCrw = crwReadingForRegion(selectedRegion);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const riskScore = calculateRiskScore();
-    const alertStatus = isCoralAlert(riskScore);
-
-    const selectedRegionData = coralRegions.find(r => r.id === selectedRegion);
-    const regionName = selectedRegionData?.name || selectedRegion;
+    const selectedRegionData = coralRegions.find(r => r.id === form.regionId);
+    const regionName = selectedRegionData?.name || form.regionId;
+    const payload = coralSavePayload(form, regionName, imageFile ? imageFile.name : null);
 
     try {
-      await saveAnalysis.mutateAsync({
-        imageId: imageFile ? imageFile.name : null,
-        bleachingProbability: parseFloat(bleachingProb) || 0,
-        thermalStress: parseFloat(thermalStress) || 0,
-        riskScore,
-        alertStatus,
-        region: regionName,
-        dataType: sourceDataType(source),
-      });
+      await saveAnalysis.mutateAsync(payload);
 
-      if (alertStatus) {
+      if (payload.alertStatus) {
         toast.success('Reef emergency alert automatically generated!');
       } else {
         toast.success('Coral analysis saved successfully');
       }
 
-      setBleachingProb('0');
-      setThermalStress('0');
+      setForm(f => initialCoralForm(f.regionId));
       setImageFile(null);
-      setSource({ kind: 'manual' });
     } catch (error) {
       toast.error('Failed to save coral analysis');
       console.error('Error saving coral analysis:', error);
@@ -170,7 +151,7 @@ export default function CoralModule() {
                 <TabsContent value="upload" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="coralRegion">Coral Reef Region</Label>
-                    <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                    <Select value={form.regionId} onValueChange={selectRegion}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -211,7 +192,7 @@ export default function CoralModule() {
                 <TabsContent value="noaa" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="noaaRegion">Coral Reef Region</Label>
-                    <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                    <Select value={form.regionId} onValueChange={selectRegion}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -262,11 +243,8 @@ export default function CoralModule() {
                     min="0"
                     max="10"
                     step="0.1"
-                    value={bleachingProb}
-                    onChange={(e) => {
-                      setBleachingProb(e.target.value);
-                      setSource({ kind: 'manual' });
-                    }}
+                    value={form.bleaching}
+                    onChange={(e) => setForm(f => editValue(f, 'bleaching', e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
                     From CRW: max(Bleaching Alert Area level x 2.5, 7.5 at DHW &gt;= 4, 10 at DHW &gt;= 8)
@@ -281,11 +259,8 @@ export default function CoralModule() {
                     min="0"
                     max="10"
                     step="0.1"
-                    value={thermalStress}
-                    onChange={(e) => {
-                      setThermalStress(e.target.value);
-                      setSource({ kind: 'manual' });
-                    }}
+                    value={form.thermalStress}
+                    onChange={(e) => setForm(f => editValue(f, 'thermalStress', e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
                     From CRW: min(Degree Heating Weeks / 8, 1) x 10
@@ -295,7 +270,7 @@ export default function CoralModule() {
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between mb-2 text-sm">
                     <span className="text-muted-foreground">Source:</span>
-                    <Badge variant="outline">{sourceLabel(source)}</Badge>
+                    <Badge variant="outline">{sourceLabel(form.source)}</Badge>
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Calculated Risk Score:</span>
@@ -322,7 +297,7 @@ export default function CoralModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : analyses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No analyses yet. Generate a simulated reading to start.
+                  No analyses yet. Load a NOAA CRW reading or generate a simulated one to start.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
