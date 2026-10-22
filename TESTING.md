@@ -38,6 +38,9 @@ instead; see below.
 | `frontend/src/lib/ndbc.test.ts` | NOAA NDBC realtime2 parsing (MM, truncated last line), newest values, sample CSV, the bundled extract |
 | `frontend/src/lib/iotForm.test.ts` | The IoT buoy risk rule and form transitions: Load NDBC Reading, station change, save payload |
 | `frontend/src/pages/IoTModule.test.tsx` | Server-side render with mocked hooks: NOAA NDBC tab and source badge |
+| `frontend/src/lib/ais.test.ts` | AIS parsing (both layouts, "not available" values, bad rows), the three behaviour rules, edge cases, risk score, upload cap, and the anonymised real sample |
+| `frontend/src/lib/aisForm.test.ts` | AIS form transitions: file choice and size cap, analyse, every input change clearing results, save payload |
+| `frontend/src/pages/AISModule.test.tsx` | Server-side render with mocked hooks: no "illegal fishing", sample credit, upload limit, source badge |
 
 The scoring and fusion logic was moved out of the page components into
 `frontend/src/lib/risk.ts` and `frontend/src/lib/fusion.ts` so it can be tested
@@ -58,9 +61,10 @@ calling the endpoints. `main.mo` type-checks with no errors and none of the
 warnings `build.sh` promotes to errors (M0223, M0235, M0236, M0237). The type-check uses the moc
 bundled in `motoko@5.0.0`, which is not the exact compiler `build.sh` uses.
 
-Satellite and AIS inputs in the app are simulated in the browser
-(`setTimeout` + `Math.random`). Coral and IoT can use dated NOAA extracts
-(see Phase 2); their image and CSV paths are still simulated. Tests use fixed
+Satellite inputs are simulated in the browser (`setTimeout` +
+`Math.random`). Coral and IoT can use dated NOAA extracts and AIS analyses
+uploaded CSVs (see Phase 2); the coral image path, the IoT CSV path and the
+AIS stream tab are still simulated. Tests use fixed
 inputs and saved responses, never the network.
 
 ## Bugs fixed (each confirmed by a failing test first)
@@ -260,3 +264,116 @@ saved `dataType: "Manual entry"` with no alert.
 | `tsc --noEmit` | 0 errors | 0 errors |
 | ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
 | `vite build` | passes | passes (JS bundle 1.8 MB unminified) |
+
+## Phase 2: add-datasets, AIS (measured 2026-10-23)
+
+**Data source.** MarineCadastre AIS broadcast points
+(https://hub.marinecadastre.gov/pages/vesseltraffic), from NOAA's Office for
+Coastal Management and BOEM, sourced from the U.S. Coast Guard's NAIS.
+- **Terms:** the site disclaimer says the information is in the public domain
+  and may be used freely, provided the user does not claim it as their own,
+  imply government endorsement, or present modified data as official.
+- **Coverage:** 2009-2026 (2026: January 1 to June 30), U.S. coastal waters
+  only, and no live feed.
+- **Files:** since 2015, one Zstandard-compressed CSV per day, one point per
+  vessel per minute. Measured sizes: 239.2 MB (2026-01-01), 271.1 MB
+  (2025-06-30), 321.3 MB (2026-06-30) compressed.
+
+**Columns.** The files on the server for 2015, 2019, 2023 and 2026 all use
+`mmsi, base_date_time, longitude, latitude, sog, cog, heading, vessel_name,
+imo, call_sign, vessel_type, status, length, width, draft, cargo,
+transceiver`. The data dictionary also documents an older 2018-2024 layout
+(`MMSI, BaseDateTime, LAT, LON, SOG, ...`); the parser accepts both.
+
+**Browser access.** The storage sends `Access-Control-Allow-Origin: *`, and a
+browser `fetch()` and a 64 KB range request both worked. But this browser has
+no zstd decoder (`DecompressionStream('zstd')` is unsupported), and each day
+is 240-320 MB for all U.S. waters, so the page analyses a CSV the user
+uploads (up to 20 MB).
+
+**Sample.** One day, 2026-06-30 (321 MB), was streamed through zstd
+decompression in Node without saving the full file. The rows inside a
+Florida Keys box (lat 24.3-25.3, lon -82.2 to -80.2) were kept: 40,270 rows,
+200 vessels. 8 vessels were chosen, one per behaviour plus a moored, an
+at-anchor and a clean one. The result is
+`frontend/src/data/ais-sample-2026-06-30.csv`: 1,349 rows, 111,743 bytes. MMSI
+was replaced by `VESSEL-001`...`VESSEL-008`, and `vessel_name`, `imo` and
+`call_sign` were dropped. It ships in the app bundle for the "Use sample
+file" button. The whole-day totals printed by the stream were cut off by my
+`tail` and were not kept; the statistics below are for the Florida Keys
+extract.
+
+**Rules** (`AIS_THRESHOLDS` in `frontend/src/lib/ais.ts`). They flag
+behaviour to review, not wrongdoing.
+
+| Rule (UI wording) | Threshold |
+| --- | --- |
+| Possible loitering | reported speed < 1 kn for >= 60 min, staying within 1 km of the first point; a missing speed, a gap over 30 min or leaving the radius ends the stretch |
+| Possible AIS gap | > 30 min between two consecutive reports of one vessel; time before a vessel's first or after its last report is not a gap |
+| Speed anomaly | reported speed > 40 kn (not for high-speed craft, vessel types 40-49), or implied speed between consecutive points > 50 kn when they are > 1 km apart |
+| Risk score (0-10) | 3.5 per distinct behaviour type on a vessel, capped at 10; the file's score is its highest vessel. One type gives 3.5, two give 7.0 (the AIS alert threshold the backend also uses), three give 10 |
+
+**Decisions.**
+- **"Not available" values are missing, not readings:** SOG 102.3 and COG
+  360.0 (from the MarineCadastre AIS FAQ), heading 511 (the FAQ's pre-2015
+  default), plus out-of-range values and status 15 ("not defined").
+- **Bad rows are dropped and counted:** coordinates that are non-numeric, out
+  of range or exactly 0,0, and unreadable timestamps.
+- **Duplicates and order:** per vessel, duplicate timestamps keep the first
+  point, and rows are sorted by time.
+- **Status codes:** taken from ITU-R M.1371, which NAIS uses; MarineCadastre's
+  dictionary only says a lookup table is required. Moored (5) is skipped for
+  loitering. **At anchor (1) is also skipped**: it is a declared stationary
+  state, so a still vessel at anchor is expected. The cost is that a vessel
+  wrongly reporting "at anchor" while loitering would be missed.
+
+**What the rules found on real data (Florida Keys extract, 2026-06-30).**
+- **Most vessels flagged:** 120 of 200 vessels, with 136 possible loitering
+  stretches, 195 possible AIS gaps and 12 speed anomalies; the extract's
+  score was 7.
+- **Why, and the caveat that follows:** most flags are on sailing (type 36)
+  and pleasure craft (type 37), and 26,946 of the 40,270 rows have no
+  navigational status (small boats' Class B transceivers do not send one). So
+  boats tied up at a marina all day read as possible loitering, and the
+  moored skip cannot help. For a busy recreational area these thresholds
+  over-flag; restricting to Class A transceivers or excluding types 36/37 are
+  options not applied here.
+- **Placeholders absent here:** no "not available" values (0 x 102.3,
+  0 x 360, 0 x 511) and no bad coordinates; 7 duplicate timestamps.
+- **The status can be stale:** the only "at anchor" vessel (VESSEL-008)
+  reports status 1 on all 137 points while moving at up to 8.4 kn.
+- **Plausible behaviour still gets flagged:** VESSEL-005 (passenger ship)
+  shows two position jumps implying 258.7 and 341 kn, and VESSEL-004 (pleasure
+  craft) reports 41.0-41.6 kn, which such a boat can do: a speed anomaly to
+  review, not an error.
+
+**Sample results:** 8 vessels, 1,348 positions after 1 duplicate timestamp,
+4 possible loitering, 11 possible AIS gaps, 5 speed anomalies, 6 vessels to
+review, risk 7.0.
+
+**Browser check** (preview harness, `frontend/preview/ais.html`).
+- **Sample:** the button gave the label "MarineCadastre AIS sample (derived,
+  anonymised), data from 2026-06-30", risk 7.0 "High", and the 6 flagged IDs.
+- **Reset:** typing a region cleared the results to 0 / "Manual entry".
+- **Save:** after re-analysing, the save recorded `region: "Florida Keys"`,
+  `riskScore: 7`, `alertStatus: true`, and the source in `dataModule`.
+- **Uploads**, handed to the file input as `File` objects:
+  - a 21 MB file was refused before reading ("This file is 21.0 MB; the limit
+    is 20 MB. ...");
+  - a sensor CSV showed "Not a MarineCadastre AIS CSV: missing columns: mmsi,
+    base_date_time, latitude, longitude";
+  - the sample uploaded as a file was labelled "Uploaded AIS CSV, data from
+    2026-06-30".
+
+**Not changed:** the Fusion page still labels a correlation "Illegal Fishing"
+and its recommendations use that phrase.
+
+| Check | After IoT | After AIS |
+| --- | --- | --- |
+| Tests | 174 passing (13 files) | 236 passing, 0 failing (16 files) |
+| Coverage, `lib/risk.ts` + `lib/fusion.ts` | 93.57% stmts/lines, 96.34% branches, 96.87% funcs | 93.57% stmts/lines, 96.34% branches, 96.87% funcs |
+| Coverage, `lib/ais.ts` / `aisForm.ts` | - | 100% / 100% lines (90.59% / 91.17% branches) |
+| Coverage, all of `frontend/src` (excl. `components/ui`, `declarations`, `test-utils`, tests) | 18.96% lines (1065/5617) | 25.3% lines (1495/5907) |
+| `tsc --noEmit` | 0 errors | 0 errors |
+| ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
+| `vite build` | passes (JS 1.8 MB, dist 4.9 MB) | passes (JS 1.9 MB, dist 5.1 MB; the sample is bundled) |
