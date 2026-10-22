@@ -26,6 +26,7 @@ import {
   type FusionAlert,
   type CorrelationMetric,
 } from '../lib/fusion';
+import { moduleRiskPercent } from '../lib/risk';
 
 export default function FusionModule() {
   const { data: satelliteData = [], isLoading: satelliteLoading } = useGetSatelliteAnalysisHistory();
@@ -446,7 +447,7 @@ export default function FusionModule() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-chart-1">{avgSatelliteRisk.toFixed(2)}</div>
-                  <Progress value={avgSatelliteRisk * 100} className="h-2 mt-2" />
+                  <Progress value={moduleRiskPercent(avgSatelliteRisk)} className="h-2 mt-2" />
                   <p className="text-xs text-muted-foreground mt-2">{satelliteData.length} analyses</p>
                 </CardContent>
               </Card>
@@ -457,7 +458,7 @@ export default function FusionModule() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-chart-2">{avgCoralRisk.toFixed(2)}</div>
-                  <Progress value={avgCoralRisk * 100} className="h-2 mt-2" />
+                  <Progress value={moduleRiskPercent(avgCoralRisk)} className="h-2 mt-2" />
                   <p className="text-xs text-muted-foreground mt-2">{coralData.length} analyses</p>
                 </CardContent>
               </Card>
@@ -468,7 +469,7 @@ export default function FusionModule() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-chart-3">{avgAISRisk.toFixed(2)}</div>
-                  <Progress value={avgAISRisk * 100} className="h-2 mt-2" />
+                  <Progress value={moduleRiskPercent(avgAISRisk)} className="h-2 mt-2" />
                   <p className="text-xs text-muted-foreground mt-2">{aisData.length} records</p>
                 </CardContent>
               </Card>
@@ -479,7 +480,7 @@ export default function FusionModule() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-chart-4">{avgIoTRisk.toFixed(2)}</div>
-                  <Progress value={avgIoTRisk * 100} className="h-2 mt-2" />
+                  <Progress value={moduleRiskPercent(avgIoTRisk)} className="h-2 mt-2" />
                   <p className="text-xs text-muted-foreground mt-2">{iotData.length} readings</p>
                 </CardContent>
               </Card>

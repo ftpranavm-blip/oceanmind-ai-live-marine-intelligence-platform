@@ -3,6 +3,17 @@
 // Vessel risk scores from the backend map data are on a 0-1 scale.
 
 export const MODULE_RISK_MAX = 10;
+export const VESSEL_RISK_MAX = 1;
+
+// Converts a 0-1 vessel risk score onto the 0-10 module scale.
+export function vesselRiskOnModuleScale(vesselRisk: number): number {
+  return (vesselRisk / VESSEL_RISK_MAX) * MODULE_RISK_MAX;
+}
+
+// Percentage (0-100) of a 0-10 module-scale score, for progress bars.
+export function moduleRiskPercent(score: number): number {
+  return (score / MODULE_RISK_MAX) * 100;
+}
 
 export const SATELLITE_HIGH_RISK_THRESHOLD = 7;
 export const CORAL_ALERT_THRESHOLD = 6;

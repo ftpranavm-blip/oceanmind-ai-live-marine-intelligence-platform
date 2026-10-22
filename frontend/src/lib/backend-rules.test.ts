@@ -43,8 +43,11 @@ describe('backend analysis rules harness', () => {
     // Production moc resolves `.toArray()` on iterators via --implicit-package core,
     // which the npm build lacks; importing Iter gives the same resolution.
     mo.write('main.mo', 'import Iter "mo:core/Iter";\n' + readFileSync(join(backendDir, 'main.mo'), 'utf8'));
-    const errors = mo.check('main.mo').filter((d: { severity: number }) => d.severity === 1);
-    expect(errors).toEqual([]);
+    const diagnostics: { severity: number; code?: string; source: string; message: string }[] = mo.check('main.mo');
+    // build.sh promotes these warnings to errors (-E M0236 -E M0235 -E M0223 -E M0237).
+    const promoted = new Set(['M0236', 'M0235', 'M0223', 'M0237']);
+    const errors = diagnostics.filter(d => d.severity === 1 || promoted.has(d.code ?? ''));
+    expect(errors.map(d => `${d.source}: ${d.code} ${d.message}`)).toEqual([]);
   });
 });
 

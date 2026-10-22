@@ -1,6 +1,9 @@
 // Pure fusion-engine logic: global risk indices, correlation rules and
 // recommendation scenario selection. No React, no backend calls.
-import { averageRisk } from './risk';
+import { averageRisk, moduleRiskPercent, moduleSeverityBand, vesselRiskOnModuleScale, type ModuleSeverityBand } from './risk';
+
+// All indices and thresholds below are on the 0-10 module scale. Vessel risk
+// (0-1) is converted with vesselRiskOnModuleScale before it is combined.
 
 export interface FusionSatelliteRecord {
   riskScore: number;
@@ -42,6 +45,7 @@ export interface ModuleRiskAverages {
   coral: number;
   ais: number;
   iot: number;
+  /** Average vessel risk on its native 0-1 scale. */
   vessel: number;
 }
 
@@ -62,7 +66,7 @@ export function weightedGlobalRiskIndex(avg: ModuleRiskAverages): number {
     avg.coral * 0.2 +
     avg.ais * 0.25 +
     avg.iot * 0.15 +
-    avg.vessel * 0.15
+    vesselRiskOnModuleScale(avg.vessel) * 0.15
   );
 }
 
@@ -72,30 +76,30 @@ export function simpleGlobalRiskIndex(avg: Omit<ModuleRiskAverages, 'vessel'>): 
 }
 
 export function fusionRiskScore(avg: ModuleRiskAverages): number {
-  return Math.min((avg.satellite + avg.coral + avg.ais + avg.iot + avg.vessel) / 5, 10);
+  const vessel = vesselRiskOnModuleScale(avg.vessel);
+  return Math.min((avg.satellite + avg.coral + avg.ais + avg.iot + vessel) / 5, 10);
 }
 
-export type FusionIndexBand = 'Critical' | 'Elevated' | 'Normal';
+export type FusionIndexBand = ModuleSeverityBand;
 
 export function fusionIndexBand(index: number): FusionIndexBand {
-  if (index >= 0.7) return 'Critical';
-  if (index >= 0.4) return 'Elevated';
-  return 'Normal';
+  return moduleSeverityBand(index);
 }
 
 // Percentage (0-100) for the index progress bar.
 export function fusionIndexPercent(index: number): number {
-  return index * 100;
+  return moduleRiskPercent(index);
 }
 
 // Record filters used by the correlation rules and the correlation matrix.
-export const isHighRiskAIS = (d: FusionAISRecord) => d.riskScore > 0.7;
-export const isCoralEmergency = (d: FusionCoralRecord) => d.riskScore > 0.6 && d.thermalStress > 0.6;
-export const isHighRiskIoT = (d: FusionIoTRecord) => d.riskScore > 0.6;
-export const isCoralBleaching = (d: FusionCoralRecord) => d.bleachingProbability > 0.6;
-export const isHighThermalStress = (d: FusionCoralRecord) => d.thermalStress > 0.7;
+// Vessel risk stays on its 0-1 scale here.
+export const isHighRiskAIS = (d: FusionAISRecord) => d.riskScore > 7;
+export const isCoralEmergency = (d: FusionCoralRecord) => d.riskScore > 6 && d.thermalStress > 6;
+export const isHighRiskIoT = (d: FusionIoTRecord) => d.riskScore > 6;
+export const isCoralBleaching = (d: FusionCoralRecord) => d.bleachingProbability > 6;
+export const isHighThermalStress = (d: FusionCoralRecord) => d.thermalStress > 7;
 export const isTurbidityAnomaly = (d: FusionIoTRecord) =>
-  d.dataType.toLowerCase().includes('turbidity') && d.riskScore > 0.6;
+  d.dataType.toLowerCase().includes('turbidity') && d.riskScore > 6;
 export const isHighRiskVessel = (v: FusionVesselRecord) => v.riskScore > 0.5;
 export const isMpaViolation = (d: FusionSatelliteRecord) => d.marina_area_flag && Number(d.vesselCount) > 5;
 
@@ -263,12 +267,12 @@ export function selectRecommendationScenario(
   if (has('reef_emergency')) return 'reef_emergency';
   if (has('pollution_correlation')) return 'pollution';
   if (has('mpa_violation')) return 'mpa_violation';
-  if (globalRiskIndex > 0.5) return 'elevated';
+  if (globalRiskIndex > 5) return 'elevated';
   return 'normal';
 }
 
 export function shouldGenerateRecommendations(alertCount: number, globalRiskIndex: number): boolean {
-  return alertCount > 0 || globalRiskIndex > 0.3;
+  return alertCount > 0 || globalRiskIndex > 3;
 }
 
 export function confidenceIndicator(score: number): 'High' | 'Medium' | 'Low' {
