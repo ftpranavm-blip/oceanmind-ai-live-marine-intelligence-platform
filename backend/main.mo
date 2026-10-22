@@ -11,6 +11,7 @@ import Principal "mo:core/Principal";
 import Float "mo:core/Float";
 import Migration "migration";
 import AnalysisRules "analysis-rules";
+import Ownership "ownership";
 import Runtime "mo:core/Runtime";
 
 // Explicit data migration to restore stable persistent state.
@@ -378,6 +379,17 @@ actor {
     globalFusionThreshold = 0.65;
   };
 
+  func callerIsAdmin(caller : Principal) : Bool {
+    AccessControl.isAdmin(accessControlState, caller);
+  };
+
+  // Traps if `id` already holds a record that `caller` may not overwrite.
+  func requireWritable(existing : ?{ owner : Principal }, caller : Principal) {
+    if (not Ownership.mayWrite(existing, caller, callerIsAdmin(caller))) {
+      Runtime.trap("Unauthorized: A record with this id belongs to another user");
+    };
+  };
+
   // Method to get map data
   public query ({ caller }) func getMapData() : async MapData {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
@@ -531,6 +543,7 @@ actor {
       owner = caller;
     };
 
+    requireWritable(satelliteAnalyses.get(id), caller);
     satelliteAnalyses.add(id, analysis);
     true;
   };
@@ -540,7 +553,7 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can access satellite analysis history");
     };
 
-    satelliteAnalyses.values().toArray();
+    Ownership.visibleTo(satelliteAnalyses.values(), caller, callerIsAdmin(caller));
   };
 
   // Return success confirmation for real-time cache invalidation
@@ -578,7 +591,7 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can access coral analysis history");
     };
 
-    coralAnalyses.values().toArray();
+    Ownership.visibleTo(coralAnalyses.values(), caller, callerIsAdmin(caller));
   };
 
   // Return success confirmation for real-time cache invalidation
@@ -604,6 +617,7 @@ actor {
       owner = caller;
     };
 
+    requireWritable(aisAnalyses.get(id), caller);
     aisAnalyses.add(id, analysis);
     true;
   };
@@ -613,7 +627,7 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can access AIS analysis history");
     };
 
-    aisAnalyses.values().toArray();
+    Ownership.visibleTo(aisAnalyses.values(), caller, callerIsAdmin(caller));
   };
 
   // Return success confirmation for real-time cache invalidation
@@ -639,6 +653,7 @@ actor {
       owner = caller;
     };
 
+    requireWritable(iotAnalyses.get(id), caller);
     iotAnalyses.add(id, analysis);
     true;
   };
@@ -648,7 +663,7 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can access IoT analysis history");
     };
 
-    iotAnalyses.values().toArray();
+    Ownership.visibleTo(iotAnalyses.values(), caller, callerIsAdmin(caller));
   };
 
   // Return success confirmation for real-time cache invalidation
@@ -675,6 +690,7 @@ actor {
       aiRecommendations = ?aiRecommendations;
     };
 
+    requireWritable(fusionAnalysisHistory.get(id), caller);
     fusionAnalysisHistory.add(id, fusionAnalysis);
     true;
   };
@@ -684,7 +700,7 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can access fusion analysis history");
     };
 
-    fusionAnalysisHistory.values().toArray();
+    Ownership.visibleTo(fusionAnalysisHistory.values(), caller, callerIsAdmin(caller));
   };
 
   // Get AI recommendations for a specific fusion analysis - requires authentication
@@ -694,7 +710,9 @@ actor {
     };
 
     switch (fusionAnalysisHistory.get(id)) {
-      case (?record) { record.aiRecommendations };
+      case (?record) {
+        if (Ownership.mayRead(record, caller, callerIsAdmin(caller))) { record.aiRecommendations } else { null };
+      };
       case (null) { null };
     };
   };
@@ -770,6 +788,7 @@ actor {
       owner = caller;
     };
 
+    requireWritable(alerts.get(id), caller);
     alerts.add(id, alert);
     true;
   };

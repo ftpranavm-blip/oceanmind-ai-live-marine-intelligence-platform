@@ -1,30 +1,9 @@
 // Runs backend/analysis-rules.mo (the rules main.mo uses when saving coral,
 // AIS and IoT analyses) through the Motoko interpreter from the motoko npm package.
 // This tests the rules module, not a deployed canister.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import mo from 'motoko';
-import corePackage from 'motoko/packages/latest/core.json';
+import { checkMain, loadBackend, runMotoko } from '../test-utils/motoko';
 import { isAisAlert, isCoralAlert, isIotAlert } from './risk';
-
-const backendDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'backend');
-
-function loadBackend(dir: string) {
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) loadBackend(path);
-    else if (name.endsWith('.mo')) mo.write(relative(backendDir, path).split(sep).join('/'), readFileSync(path, 'utf8'));
-  }
-}
-
-function runMotoko(source: string): { stdout: string; stderr: string } {
-  mo.write('test.mo', source);
-  const { stdout, stderr } = mo.run('test.mo');
-  // The interpreter echoes the program's final value (`() : ()`); drop it.
-  return { stdout: stdout.replace(/\(\) : \(\)\s*$/, ''), stderr };
-}
 
 const prelude = `
 import Map "mo:core/Map";
@@ -34,20 +13,12 @@ import Rules "analysis-rules";
 `;
 
 beforeAll(() => {
-  mo.loadPackage(corePackage);
-  loadBackend(backendDir);
+  loadBackend();
 });
 
 describe('backend analysis rules harness', () => {
   it('type-checks main.mo with the rules module', () => {
-    // Production moc resolves `.toArray()` on iterators via --implicit-package core,
-    // which the npm build lacks; importing Iter gives the same resolution.
-    mo.write('main.mo', 'import Iter "mo:core/Iter";\n' + readFileSync(join(backendDir, 'main.mo'), 'utf8'));
-    const diagnostics: { severity: number; code?: string; source: string; message: string }[] = mo.check('main.mo');
-    // build.sh promotes these warnings to errors (-E M0236 -E M0235 -E M0223 -E M0237).
-    const promoted = new Set(['M0236', 'M0235', 'M0223', 'M0237']);
-    const errors = diagnostics.filter(d => d.severity === 1 || promoted.has(d.code ?? ''));
-    expect(errors.map(d => `${d.source}: ${d.code} ${d.message}`)).toEqual([]);
+    expect(checkMain()).toEqual([]);
   });
 });
 
