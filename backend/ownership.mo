@@ -14,17 +14,13 @@ module {
   };
 
   // May `caller` read `record`?
+  // Users read their own records; admins read everyone's.
   public func mayRead(record : { owner : Principal }, caller : Principal, callerIsAdmin : Bool) : Bool {
-    ignore record;
-    ignore caller;
-    ignore callerIsAdmin;
-    true;
+    record.owner == caller or callerIsAdmin;
   };
 
   // The records `caller` may read.
   public func visibleTo<V <: { owner : Principal }>(records : Iter.Iter<V>, caller : Principal, callerIsAdmin : Bool) : [V] {
-    ignore caller;
-    ignore callerIsAdmin;
-    records.toArray();
+    records.filter(func(r : V) : Bool { mayRead(r, caller, callerIsAdmin) }).toArray();
   };
 };
