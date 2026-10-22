@@ -1,5 +1,5 @@
 // Dev-only preview of single pages without login or a canister:
-//   vite --config vite.preview.config.js  ->  /preview/coral.html
+//   vite --config vite.preview.config.js  ->  /preview/coral.html, /preview/iot.html
 // Same as vite.config.js except src/hooks/useQueries is replaced by preview/mockQueries.ts.
 import { fileURLToPath, URL } from 'url';
 import react from '@vitejs/plugin-react';

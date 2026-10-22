@@ -6,15 +6,7 @@ import { CORAL_REGIONS } from '../src/lib/coralRegions';
 const saves: unknown[] = [];
 (window as unknown as { __previewSaves: unknown[] }).__previewSaves = saves;
 
-export function useGetCoralRegionCoordinates() {
-  return { data: CORAL_REGIONS };
-}
-
-export function useGetCoralAnalysisHistory() {
-  return { data: [], isLoading: false };
-}
-
-export function useSaveCoralAnalysis() {
+function useRecordingSave() {
   const [isPending, setPending] = useState(false);
   return {
     isPending,
@@ -26,3 +18,14 @@ export function useSaveCoralAnalysis() {
     },
   };
 }
+
+const emptyHistory = () => ({ data: [], isLoading: false });
+
+export function useGetCoralRegionCoordinates() {
+  return { data: CORAL_REGIONS };
+}
+
+export const useGetCoralAnalysisHistory = emptyHistory;
+export const useSaveCoralAnalysis = useRecordingSave;
+export const useGetIoTAnalysisHistory = emptyHistory;
+export const useSaveIoTAnalysis = useRecordingSave;

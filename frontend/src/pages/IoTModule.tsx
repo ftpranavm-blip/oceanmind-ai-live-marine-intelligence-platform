@@ -10,24 +10,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Thermometer, Droplets, AlertTriangle, Upload, Waves, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { isIotAlert } from '../lib/risk';
+import { IOT_STATIONS } from '../lib/iotStations';
+import type { IotVariable } from '../lib/ndbc';
+import {
+  changeLocation,
+  editRisk,
+  initialIotForm,
+  iotSavePayload,
+  iotSourceLabel,
+  loadNdbcReading,
+  ndbcReadingForLocation,
+  setSimulatedReading,
+} from '../lib/iotForm';
+
+const VARIABLE_LABELS: [IotVariable, string][] = [
+  ['temperature', 'Water temperature'],
+  ['ph', 'pH'],
+  ['oxygen', 'Dissolved oxygen'],
+  ['turbidity', 'Turbidity'],
+];
+const UNIT_LABELS: Record<string, string> = { degC: '°C', ppm: 'mg/L', '-': '', pH: '' };
 
 export default function IoTModule() {
-  const [riskScore, setRiskScore] = useState('0');
+  const [form, setForm] = useState(initialIotForm);
   const [csvFile, setCSVFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
-  // NOAA buoy simulation
-  const [buoyLocation, setBuoyLocation] = useState('pacific-buoy-1');
-  const [fetchingBuoy, setFetchingBuoy] = useState(false);
-  const [sensorData, setSensorData] = useState({
-    temperature: '0',
-    ph: '0',
-    turbidity: '0',
-    oxygen: '0',
-  });
-
   const saveAnalysis = useSaveIoTAnalysis();
   const { data: iotAnalyses = [], isLoading } = useGetIoTAnalysisHistory();
+
+  const selectedReading = ndbcReadingForLocation(form.locationId);
+  const riskScore = form.riskScore;
 
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,101 +68,44 @@ export default function IoTModule() {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const simulatedRisk = (Math.random() * 10).toFixed(1);
-    setRiskScore(simulatedRisk);
-
-    // Simulate sensor data extraction from CSV
-    const temp = (20 + Math.random() * 15).toFixed(1);
-    const ph = (7.5 + Math.random() * 1).toFixed(2);
-    const turbidity = (Math.random() * 50).toFixed(1);
-    const oxygen = (5 + Math.random() * 5).toFixed(1);
-
-    setSensorData({
-      temperature: temp,
-      ph,
-      turbidity,
-      oxygen,
-    });
+    const sensor = {
+      temperature: (20 + Math.random() * 15).toFixed(1),
+      ph: (7.5 + Math.random() * 1).toFixed(2),
+      turbidity: (Math.random() * 50).toFixed(1),
+      oxygen: (5 + Math.random() * 5).toFixed(1),
+    };
+    setForm(f => setSimulatedReading(f, sensor, simulatedRisk));
 
     setAnalyzing(false);
     toast.success('Simulated sensor reading generated.');
   };
 
-  const handleBuoyFetch = async () => {
-    setFetchingBuoy(true);
-    toast.info('Generating simulated buoy reading...');
-
-    // Simulate NOAA buoy API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const temp = (20 + Math.random() * 15).toFixed(1);
-    const ph = (7.5 + Math.random() * 1).toFixed(2);
-    const turbidity = (Math.random() * 50).toFixed(1);
-    const oxygen = (5 + Math.random() * 5).toFixed(1);
-
-    setSensorData({
-      temperature: temp,
-      ph,
-      turbidity,
-      oxygen,
-    });
-
-    // Calculate risk based on parameters
-    let risk = 0;
-    if (parseFloat(temp) > 30) risk += 3;
-    if (parseFloat(ph) < 7.8 || parseFloat(ph) > 8.3) risk += 2;
-    if (parseFloat(turbidity) > 30) risk += 2.5;
-    if (parseFloat(oxygen) < 6) risk += 2.5;
-
-    setRiskScore(Math.min(risk, 10).toFixed(1));
-
-    setFetchingBuoy(false);
-    toast.success('Simulated buoy reading generated.');
+  // Loads the bundled NDBC extract (NDBC blocks browser requests via CORS).
+  const handleNdbcLoad = () => {
+    if (!selectedReading) {
+      toast.error('No NDBC reading for this location in the bundled extract');
+      return;
+    }
+    setForm(loadNdbcReading);
+    toast.success(`Loaded ${selectedReading.label}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const score = parseFloat(riskScore) || 0;
-
-    // Determine data type based on which parameter has the highest risk
-    let dataType = 'temperature';
-    if (parseFloat(sensorData.ph) < 7.8 || parseFloat(sensorData.ph) > 8.3) {
-      dataType = 'pH';
-    } else if (parseFloat(sensorData.turbidity) > 30) {
-      dataType = 'turbidity';
-    } else if (parseFloat(sensorData.oxygen) < 6) {
-      dataType = 'oxygen';
-    }
-
-    // Determine region based on buoy location
-    const regionMap: Record<string, string> = {
-      'pacific-buoy-1': 'Pacific Ocean',
-      'atlantic-buoy-2': 'Atlantic Ocean',
-      'caribbean-buoy-3': 'Caribbean Sea',
-      'indian-buoy-4': 'Indian Ocean',
-    };
-    const region = regionMap[buoyLocation] || 'Unknown Region';
-
-    const alertStatus = isIotAlert(score);
+    const payload = iotSavePayload(form);
 
     try {
-      await saveAnalysis.mutateAsync({
-        dataModule: 'IoT Intelligence',
-        region,
-        dataType,
-        riskScore: score,
-        alertStatus,
-      });
+      await saveAnalysis.mutateAsync(payload);
 
-      if (alertStatus) {
+      if (payload.alertStatus) {
         toast.success('Climate stress alert automatically generated!');
       } else {
         toast.success('IoT analysis saved successfully');
       }
 
       // Reset form
-      setRiskScore('0');
+      setForm(f => initialIotForm(f.locationId));
       setCSVFile(null);
-      setSensorData({ temperature: '0', ph: '0', turbidity: '0', oxygen: '0' });
     } catch (error) {
       console.error('Failed to save IoT analysis:', error);
       toast.error('Failed to save IoT analysis');
@@ -166,7 +122,7 @@ export default function IoTModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">IoT Ocean Intelligence Module</h1>
-            <p className="text-muted-foreground">Ocean parameter risk scoring (simulated readings)</p>
+            <p className="text-muted-foreground">Ocean parameter risk scoring from NOAA NDBC station data or simulated readings</p>
           </div>
         </div>
 
@@ -185,8 +141,8 @@ export default function IoTModule() {
           {/* Data Input */}
           <Card>
             <CardHeader>
-              <CardTitle>IoT Data (Simulated)</CardTitle>
-              <CardDescription>The CSV is not parsed yet; sensor values are generated randomly</CardDescription>
+              <CardTitle>IoT Data</CardTitle>
+              <CardDescription>Load a dated NOAA NDBC station reading, or generate a simulated reading (uploaded CSVs are not parsed yet)</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="csv" className="space-y-4">
@@ -197,7 +153,7 @@ export default function IoTModule() {
                   </TabsTrigger>
                   <TabsTrigger value="buoy">
                     <Waves className="w-4 h-4 mr-2" />
-                    Simulated Buoy
+                    NOAA NDBC
                   </TabsTrigger>
                 </TabsList>
 
@@ -228,61 +184,60 @@ export default function IoTModule() {
                     disabled={!csvFile || analyzing}
                     className="w-full"
                   >
-                    {analyzing ? 'Analyzing...' : 'Analyze Sensor Data'}
+                    {analyzing ? 'Generating...' : 'Generate Simulated Reading'}
                   </Button>
                 </TabsContent>
 
                 <TabsContent value="buoy" className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="buoyLocation">Buoy Location</Label>
-                    <Select value={buoyLocation} onValueChange={setBuoyLocation}>
+                    <Label htmlFor="buoyLocation">Station</Label>
+                    <Select value={form.locationId} onValueChange={(id) => setForm(f => changeLocation(f, id))}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pacific-buoy-1">Pacific Ocean - Buoy 1</SelectItem>
-                        <SelectItem value="atlantic-buoy-2">Atlantic Ocean - Buoy 2</SelectItem>
-                        <SelectItem value="caribbean-buoy-3">Caribbean Sea - Buoy 3</SelectItem>
-                        <SelectItem value="indian-buoy-4">Indian Ocean - Buoy 4</SelectItem>
+                        {IOT_STATIONS.map((station) => (
+                          <SelectItem key={station.id} value={station.id}>
+                            {station.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                    <div className="font-medium">Simulated NOAA buoy reading</div>
+                    <div className="font-medium">NOAA National Data Buoy Center</div>
                     <div className="text-xs text-muted-foreground">
-                      Temperature, pH, turbidity and oxygen are generated randomly, not fetched
+                      Bundled extract of the newest values in NDBC's 45-day station files (browsers cannot call NDBC directly).
+                      Refresh with scripts/update-ndbc-extract.mts.
                     </div>
+                    {selectedReading ? (
+                      <div className="space-y-1 pt-2 text-xs">
+                        {VARIABLE_LABELS.map(([variable, label]) => {
+                          const r = selectedReading.location.readings[variable];
+                          return (
+                            <div key={variable} className="flex items-center justify-between gap-2">
+                              <span>{label}</span>
+                              <span>
+                                {r.value} {UNIT_LABELS[r.unit] ?? r.unit}{' '}
+                                {r.source === 'ndbc' ? (
+                                  <span className="text-muted-foreground">({r.column}, {r.time.slice(0, 16).replace('T', ' ')} UTC)</span>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">sample, not measured</Badge>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground pt-2">No reading for this station in the extract.</div>
+                    )}
                   </div>
 
-                  <Button
-                    onClick={handleBuoyFetch}
-                    disabled={fetchingBuoy}
-                    className="w-full"
-                  >
-                    {fetchingBuoy ? 'Generating...' : 'Generate Simulated Buoy Data'}
+                  <Button onClick={handleNdbcLoad} disabled={!selectedReading} className="w-full">
+                    Load NDBC Reading
                   </Button>
-
-                  {parseFloat(sensorData.temperature) > 0 && (
-                    <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/50 text-sm">
-                      <div>
-                        <div className="text-xs text-muted-foreground">Temperature</div>
-                        <div className="font-medium">{sensorData.temperature}°C</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">pH Level</div>
-                        <div className="font-medium">{sensorData.ph}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Turbidity</div>
-                        <div className="font-medium">{sensorData.turbidity} NTU</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Oxygen</div>
-                        <div className="font-medium">{sensorData.oxygen} mg/L</div>
-                      </div>
-                    </div>
-                  )}
                 </TabsContent>
               </Tabs>
 
@@ -296,7 +251,7 @@ export default function IoTModule() {
                     max="10"
                     step="0.1"
                     value={riskScore}
-                    onChange={(e) => setRiskScore(e.target.value)}
+                    onChange={(e) => setForm(f => editRisk(f, e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
                     Based on temperature, pH, turbidity, and oxygen levels
@@ -304,6 +259,10 @@ export default function IoTModule() {
                 </div>
 
                 <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-2 text-sm">
+                    <span className="text-muted-foreground">Source:</span>
+                    <Badge variant="outline">{iotSourceLabel(form.source)}</Badge>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Alert Level:</span>
                     <Badge variant={parseFloat(riskScore) >= 7 ? 'destructive' : 'secondary'}>
@@ -329,7 +288,7 @@ export default function IoTModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : iotAnalyses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No IoT analyses yet. Upload CSV or fetch buoy data to begin.
+                  No IoT analyses yet. Load an NDBC reading or generate a simulated one to begin.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
