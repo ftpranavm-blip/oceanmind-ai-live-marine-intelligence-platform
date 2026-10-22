@@ -59,7 +59,9 @@ The UI labels these readings "Simulated".
 
 Needs Node.js with corepack (tested locally on Node 24; CI uses Node 22). Corepack provides pnpm 9.15.9. `scripts/local-workspace.sh`
 reproduces the `build.sh` layout in a work dir outside the repo (default
-`F:/Claude/oceanmind-work`; set `OCEANMIND_WORK` to change it).
+`oceanmind-work` next to the repo; set `OCEANMIND_WORK`, `PNPM_STORE` and
+`COREPACK_HOME` in the environment or in a gitignored
+`scripts/local-workspace.env` to change it, and run `paths` to check).
 
 ```bash
 bash scripts/local-workspace.sh init                  # copy + pnpm install --frozen-lockfile

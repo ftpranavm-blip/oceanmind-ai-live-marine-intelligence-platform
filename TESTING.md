@@ -4,7 +4,8 @@
 
 `build.sh` copies `build-template/` into a temp dir and overlays the app
 sources. `scripts/local-workspace.sh` does the same into a work dir outside the
-repo (default `F:/Claude/oceanmind-work`, override with `OCEANMIND_WORK`), so the
+repo (default `oceanmind-work` next to the repo; override with `OCEANMIND_WORK`
+in the environment or in the gitignored `scripts/local-workspace.env`), so the
 repo layout is unchanged. It runs pnpm 9.15.9 through corepack.
 
 ```bash
