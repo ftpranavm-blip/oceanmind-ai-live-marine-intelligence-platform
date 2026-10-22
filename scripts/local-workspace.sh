@@ -23,6 +23,9 @@ PNPM=(corepack pnpm@9.15.9)
 SHIM_DIR="$COREPACK_HOME/pnpm-shim"
 mkdir -p "$SHIM_DIR"
 printf '#!/bin/sh\nexec corepack pnpm@9.15.9 "$@"\n' > "$SHIM_DIR/pnpm"
+# Linux needs the execute bit; on Windows (Git Bash/NTFS) chmod is a harmless no-op
+# and cmd.exe uses pnpm.cmd instead.
+chmod +x "$SHIM_DIR/pnpm"
 printf '@corepack pnpm@9.15.9 %%*\r\n' > "$SHIM_DIR/pnpm.cmd"
 export PATH="$(cygpath -u "$SHIM_DIR" 2>/dev/null || echo "$SHIM_DIR"):$PATH"
 
