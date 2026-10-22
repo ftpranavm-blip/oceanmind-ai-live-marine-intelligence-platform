@@ -33,12 +33,21 @@ instead; see below.
 | `frontend/src/lib/crwReading.test.ts` | Turning an extract reading into the Coral module's inputs and source label |
 | `frontend/src/pages/CommandCenter.test.tsx` | Server-side render with mocked hooks: empty state for a user with no analyses, index once there is one |
 | `frontend/src/pages/CoralModule.test.tsx` | Server-side render with mocked hooks: NOAA CRW tab and source badge |
+| `frontend/src/lib/coralForm.test.ts` | Coral form transitions: Load NOAA CRW Reading, region change, save payload |
+| `frontend/src/lib/ndbc.test.ts` | NOAA NDBC realtime2 parsing (MM, truncated last line), newest values, sample CSV, the bundled extract |
+| `frontend/src/lib/iotForm.test.ts` | The IoT buoy risk rule and form transitions: Load NDBC Reading, station change, save payload |
+| `frontend/src/pages/IoTModule.test.tsx` | Server-side render with mocked hooks: NOAA NDBC tab and source badge |
 
 The scoring and fusion logic was moved out of the page components into
 `frontend/src/lib/risk.ts` and `frontend/src/lib/fusion.ts` so it can be tested
 without rendering React. Two pages (Command Center, Coral) are rendered to
 static HTML with `react-dom/server` and mocked data hooks; there is no
-browser DOM in the tests, so clicks are not exercised.
+browser DOM in the tests, so clicks are not exercised. Button handlers call
+pure functions in `lib/coralForm.ts` and `lib/iotForm.ts`, which are tested.
+`frontend/preview/` renders the real Coral and IoT pages with the data hooks
+stubbed (no login or canister) so they can be driven in a browser:
+`vite --config vite.preview.config.js`, then `/preview/coral.html` or
+`/preview/iot.html`.
 
 The backend tests exercise the rules modules that `main.mo` calls when saving
 and reading records. They do not deploy or call a canister, and the
@@ -48,9 +57,9 @@ calling the endpoints. `main.mo` type-checks with no errors and none of the
 warnings `build.sh` promotes to errors (M0223, M0235, M0236, M0237). The type-check uses the moc
 bundled in `motoko@5.0.0`, which is not the exact compiler `build.sh` uses.
 
-Satellite, AIS and IoT inputs in the app are simulated in the browser
-(`setTimeout` + `Math.random`). Coral can use a dated NOAA Coral Reef Watch
-extract (see Phase 2); its image path is still simulated. Tests use fixed
+Satellite and AIS inputs in the app are simulated in the browser
+(`setTimeout` + `Math.random`). Coral and IoT can use dated NOAA extracts
+(see Phase 2); their image and CSV paths are still simulated. Tests use fixed
 inputs and saved responses, never the network.
 
 ## Bugs fixed (each confirmed by a failing test first)
@@ -177,6 +186,76 @@ restriction with credit to NOAA Coral Reef Watch.
 | Coverage, `lib/risk.ts` + `lib/fusion.ts` | 93.33% stmts/lines, 96.05% branches, 96.77% funcs | 93.33% stmts/lines, 96.05% branches, 96.77% funcs |
 | Coverage, `lib/crw.ts` / `crwReading.ts` / `coralRegions.ts` | - | 100% lines each; `crw.ts` 94.28% branches |
 | Coverage, all of `frontend/src` (excl. `components/ui`, `declarations`, `test-utils`, tests) | not measured | 13.16% lines (724/5501) |
+| `tsc --noEmit` | 0 errors | 0 errors |
+| ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
+| `vite build` | passes | passes (JS bundle 1.8 MB unminified) |
+
+### Coral page checked in a browser (2026-10-23)
+
+The real Coral page was driven in the browser pane via the preview harness.
+Florida Keys: badge "NOAA CRW, data from 2026-10-15", DHW 14.83, BAA level 1
+of 4, HotSpot 0.00, SST anomaly 1.99, bleaching 10.0, thermal 10.0, risk
+10.0 / 10 (red). Hawaii: cell 21.275, -157.875 "(nearest water cell, 5.6 km
+away)", DHW 0.00, BAA 1, bleaching 2.5, thermal 0.0, risk 1.5 / 10.
+
+**Bug found:** after loading Florida Keys and switching the region to Hawaii,
+the form kept Florida's 10.0 / 10.0 under the NOAA CRW badge, and saving
+stored them as Hawaii's reading with `alertStatus: true`. Fixed in 8d0e6a2:
+changing region drops a loaded CRW reading (values reset to 0, "Manual
+entry"). The two regression tests failed before the fix. Re-checked in the
+browser: after the switch the form showed 0 / 0, Manual entry, risk 0.0, and
+saved `dataType: "Manual entry"` with no alert.
+
+## Phase 2: add-datasets, IoT (measured 2026-10-23)
+
+**Data source.** NOAA National Data Buoy Center (NDBC) realtime2 files
+(`https://www.ndbc.noaa.gov/data/realtime2/`, last 45 days). Free, no API key.
+
+- **File format.** Whitespace-separated text, newest row first, a `#YY MM DD
+  hh mm ...` header, a `#yr mo dy ...` units row, and `MM` for missing values.
+  The listing had 945 standard meteorological `.txt` files (water temperature
+  column `WTMP`) and 170 oceanographic `.ocean` files, all with the columns
+  `DEPTH OTMP COND SAL O2% O2PPM CLCON TURB PH EH`.
+- **Which variables exist.** In the newest rows of all 170 `.ocean` files
+  (first 4 KB of each, fetched 2026-10-22): water temperature (`OTMP`) at 166
+  stations, turbidity (`TURB`, FTU) at 67, dissolved oxygen (`O2%`/`O2PPM`) at
+  66, pH (`PH`) at 64. 61 stations reported pH, oxygen and turbidity together,
+  and those were coastal estuarine reserve stations. Of the 62 numeric-ID
+  (open-ocean buoy) `.ocean` stations, 0 reported pH, 2 reported oxygen and 1
+  reported turbidity.
+- **Stations used.** Pacific: PPHH1 (Papahana, He'eia Reserve, O'ahu) and
+  Caribbean: JOBP4 (Jobos Bay Reserve, Puerto Rico), both estuarine stations
+  with all four variables. Atlantic: 41049 (300 nm SSE of Bermuda) and Indian
+  Ocean: 14049 (12°S 65°E), water temperature only; 14049's newest row was
+  2026-10-01. Their pH, oxygen and turbidity come from
+  `frontend/src/data/iot-sample.csv`, headed "SAMPLE VALUES - NOT MEASURED",
+  and the UI tags each such value "sample, not measured".
+- **CORS.** NDBC sends no `Access-Control-Allow-Origin` header; a browser
+  `fetch()` of `42036.txt` and `PPHH1.ocean` was blocked by CORS policy. So the
+  app bundles `frontend/src/data/ndbc-extract.json`, regenerated by
+  `node scripts/update-ndbc-extract.mts`.
+- **Risk.** The IoT module's existing buoy rule, unchanged and now tested in
+  `lib/risk.ts`: +3 above 30 °C, +2 outside pH 7.8-8.3, +2.5 above 30
+  turbidity units, +2.5 below 6 mg/L oxygen, capped at 10. With the extract:
+  JOBP4 7.5 (30.8 °C, pH 7.6, O2 3.7 mg/L), PPHH1 2.0 (pH 7.6), 41049 0.0,
+  14049 0.0. The pH band is a seawater range, so estuarine pH readings below
+  7.8 add risk.
+- **Fixtures.** 5 saved responses in `frontend/src/lib/__fixtures__/ndbc/`
+  (first 4 KB of PPHH1.ocean, JOBP4.ocean (whole file), 41049.txt, 14049.txt
+  and 23019.txt, which has no water temperature).
+- **Browser check.** IoT page via the preview harness: JOBP4 showed 30.8 °C,
+  pH 7.6, 3.7 mg/L, 1 FTU (2026-10-21 15:30 UTC), risk 7.5 "Critical";
+  switching to 41049 reset to 0 / "Manual entry"; loading 41049 showed 29.2 °C
+  measured plus three values tagged "sample, not measured", badge "NOAA NDBC
+  41049, data from 2026-10-22 + sample pH, oxygen, turbidity", risk 0.0, and
+  saved `dataType: "temperature (NOAA NDBC 41049 2026-10-22 + sample values)"`.
+
+| Check | After coral | After coral fix + IoT |
+| --- | --- | --- |
+| Tests | 131 passing (9 files) | 174 passing, 0 failing (13 files) |
+| Coverage, `lib/risk.ts` + `lib/fusion.ts` | 93.33% stmts/lines, 96.05% branches, 96.77% funcs | 93.57% stmts/lines, 96.34% branches, 96.87% funcs |
+| Coverage, `lib/ndbc.ts` / `iotForm.ts` / `coralForm.ts` | - | 100% / 89.61% / 95.83% lines |
+| Coverage, all of `frontend/src` (excl. `components/ui`, `declarations`, `test-utils`, tests) | 13.16% lines (724/5501) | 18.96% lines (1065/5617) |
 | `tsc --noEmit` | 0 errors | 0 errors |
 | ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
 | `vite build` | passes | passes (JS bundle 1.8 MB unminified) |
