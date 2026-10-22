@@ -1,0 +1,36 @@
+name: CI
+
+on: push
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # scripts/local-workspace.sh mirrors build.sh: build-template/ is copied
+      # into a work dir and frontend/ + backend/ are overlaid onto src/.
+      - name: Point the workspace at the runner temp dir
+        run: |
+          echo "OCEANMIND_WORK=$RUNNER_TEMP/oceanmind-work" >> "$GITHUB_ENV"
+          echo "PNPM_STORE=$RUNNER_TEMP/pnpm-store" >> "$GITHUB_ENV"
+          echo "COREPACK_HOME=$RUNNER_TEMP/corepack" >> "$GITHUB_ENV"
+
+      - name: Install (pnpm install --frozen-lockfile)
+        run: bash scripts/local-workspace.sh init
+
+      - name: Typecheck
+        run: bash scripts/local-workspace.sh run typescript-check
+
+      - name: Lint
+        run: bash scripts/local-workspace.sh run lint
+
+      - name: Tests with coverage
+        run: bash scripts/local-workspace.sh run test:coverage
+
+      - name: Build frontend
+        run: bash scripts/local-workspace.sh run build:skip-bindings
