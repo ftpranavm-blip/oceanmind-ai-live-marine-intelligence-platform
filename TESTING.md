@@ -97,9 +97,11 @@ Each fix has its own commit; tests were written first and seen failing.
    recommendation contacts are `example.org` placeholders with a badge.
    12 label tests failed before the change.
 5. **CI.** `.github/workflows/ci.yml` runs install (`--frozen-lockfile`),
-   typecheck, lint, tests with coverage and the build on every push. Its steps
-   were run locally in a fresh work dir and all passed; it has not yet run on
-   GitHub because nothing has been pushed.
+   typecheck, lint, tests with coverage and the build on every push. On GitHub,
+   run #1 failed in the build step (`pnpm copy:env`: "pnpm: Permission
+   denied") because the pnpm shim written by `scripts/local-workspace.sh` was
+   not executable on Linux. Fixed in 4fd69b0 (`chmod +x` on the shim); run #2
+   passed in 1m 8s.
 6. **Docs.** README and `.gitignore` added; `spec.md` API section now lists
    only the 30 endpoints that exist (8 non-existent ones removed).
 
