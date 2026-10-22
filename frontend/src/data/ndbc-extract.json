@@ -1,0 +1,143 @@
+{
+  "source": "NOAA National Data Buoy Center realtime2 files (www.ndbc.noaa.gov/data/realtime2)",
+  "retrieved": "2026-10-22",
+  "sampleFile": "frontend/src/data/iot-sample.csv",
+  "locations": {
+    "pacific-buoy-1": {
+      "station": "PPHH1",
+      "name": "Pacific – Papahana, He'eia Reserve, O'ahu (NDBC PPHH1)",
+      "file": "ocean",
+      "lat": 21.409,
+      "lon": -157.823,
+      "readings": {
+        "temperature": {
+          "value": 20.8,
+          "unit": "degC",
+          "source": "ndbc",
+          "column": "OTMP",
+          "time": "2026-10-22T18:15:00Z"
+        },
+        "ph": {
+          "value": 7.6,
+          "unit": "-",
+          "source": "ndbc",
+          "column": "PH",
+          "time": "2026-10-22T18:15:00Z"
+        },
+        "oxygen": {
+          "value": 8.8,
+          "unit": "ppm",
+          "source": "ndbc",
+          "column": "O2PPM",
+          "time": "2026-10-22T18:15:00Z"
+        },
+        "turbidity": {
+          "value": 1,
+          "unit": "FTU",
+          "source": "ndbc",
+          "column": "TURB",
+          "time": "2026-10-22T18:15:00Z"
+        }
+      }
+    },
+    "atlantic-buoy-2": {
+      "station": "41049",
+      "name": "Atlantic – 300 nm SSE of Bermuda (NDBC 41049)",
+      "file": "txt",
+      "lat": 27.505,
+      "lon": -62.271,
+      "readings": {
+        "temperature": {
+          "value": 29.2,
+          "unit": "degC",
+          "source": "ndbc",
+          "column": "WTMP",
+          "time": "2026-10-22T18:50:00Z"
+        },
+        "ph": {
+          "value": 8.05,
+          "unit": "pH",
+          "source": "sample"
+        },
+        "oxygen": {
+          "value": 6.8,
+          "unit": "mg/L",
+          "source": "sample"
+        },
+        "turbidity": {
+          "value": 1,
+          "unit": "FTU",
+          "source": "sample"
+        }
+      }
+    },
+    "caribbean-buoy-3": {
+      "station": "JOBP4",
+      "name": "Caribbean – Jobos Bay Reserve, Puerto Rico (NDBC JOBP4)",
+      "file": "ocean",
+      "lat": 17.944,
+      "lon": -66.238,
+      "readings": {
+        "temperature": {
+          "value": 30.8,
+          "unit": "degC",
+          "source": "ndbc",
+          "column": "OTMP",
+          "time": "2026-10-21T15:30:00Z"
+        },
+        "ph": {
+          "value": 7.6,
+          "unit": "-",
+          "source": "ndbc",
+          "column": "PH",
+          "time": "2026-10-21T15:30:00Z"
+        },
+        "oxygen": {
+          "value": 3.7,
+          "unit": "ppm",
+          "source": "ndbc",
+          "column": "O2PPM",
+          "time": "2026-10-21T15:30:00Z"
+        },
+        "turbidity": {
+          "value": 1,
+          "unit": "FTU",
+          "source": "ndbc",
+          "column": "TURB",
+          "time": "2026-10-21T15:30:00Z"
+        }
+      }
+    },
+    "indian-buoy-4": {
+      "station": "14049",
+      "name": "Indian Ocean – 12°S 65°E (NDBC 14049)",
+      "file": "txt",
+      "lat": -12,
+      "lon": 65,
+      "readings": {
+        "temperature": {
+          "value": 26.8,
+          "unit": "degC",
+          "source": "ndbc",
+          "column": "WTMP",
+          "time": "2026-10-01T13:00:00Z"
+        },
+        "ph": {
+          "value": 8.05,
+          "unit": "pH",
+          "source": "sample"
+        },
+        "oxygen": {
+          "value": 6.8,
+          "unit": "mg/L",
+          "source": "sample"
+        },
+        "turbidity": {
+          "value": 1,
+          "unit": "FTU",
+          "source": "sample"
+        }
+      }
+    }
+  }
+}

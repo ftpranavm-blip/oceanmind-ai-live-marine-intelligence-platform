@@ -58,6 +58,24 @@ export function isIotAlert(riskScore: number): boolean {
   return riskScore >= IOT_ALERT_THRESHOLD;
 }
 
+export interface IotSensorValues {
+  temperature: number;
+  ph: number;
+  turbidity: number;
+  oxygen: number;
+}
+
+// The IoT module's buoy rule: +3 above 30 degC, +2 outside pH 7.8-8.3,
+// +2.5 above 30 turbidity units, +2.5 below 6 mg/L dissolved oxygen; capped at 10.
+export function iotRiskScore({ temperature, ph, turbidity, oxygen }: IotSensorValues): number {
+  let risk = 0;
+  if (temperature > 30) risk += 3;
+  if (ph < 7.8 || ph > 8.3) risk += 2;
+  if (turbidity > 30) risk += 2.5;
+  if (oxygen < 6) risk += 2.5;
+  return Math.min(risk, MODULE_RISK_MAX);
+}
+
 export function averageRisk(records: ReadonlyArray<{ riskScore: number }>): number {
   if (records.length === 0) return 0;
   return records.reduce((sum, r) => sum + r.riskScore, 0) / records.length;

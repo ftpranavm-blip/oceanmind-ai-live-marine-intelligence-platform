@@ -1,0 +1,12 @@
+# SAMPLE VALUES - NOT MEASURED.
+# Used only where the NDBC station does not report the variable
+# (41049 and 14049 report water temperature but no pH, oxygen or turbidity).
+# Illustrative open-ocean surface values picked by hand for the demo;
+# they are not taken from any dataset. The UI labels them "sample".
+location,variable,value,unit
+atlantic-buoy-2,ph,8.05,pH
+atlantic-buoy-2,oxygen,6.8,mg/L
+atlantic-buoy-2,turbidity,1,FTU
+indian-buoy-4,ph,8.05,pH
+indian-buoy-4,oxygen,6.8,mg/L
+indian-buoy-4,turbidity,1,FTU
