@@ -55,6 +55,28 @@ converted to 0-10 before they enter the Global Marine Risk Index
 
 The UI labels these readings "Simulated".
 
+## Data sources and credits
+
+- **AIS (vessel traffic):** `frontend/src/data/ais-sample-2026-06-30.csv` is a
+  small sample **derived** from the MarineCadastre AIS broadcast points for
+  2026-06-30 (U.S. coastal waters), published by NOAA's Office for Coastal
+  Management and the Bureau of Ocean Energy Management (BOEM) at
+  https://hub.marinecadastre.gov/pages/vesseltraffic. It keeps 8 vessels in a
+  Florida Keys box (1,349 rows). MMSI numbers were replaced with generated IDs
+  (`VESSEL-001` ... `VESSEL-008`) and the `vessel_name`, `imo` and `call_sign`
+  columns were removed. It is not an official government dataset, and its use
+  here does not imply endorsement by or affiliation with NOAA, BOEM or the U.S.
+  Coast Guard.
+- **Coral:** NOAA Coral Reef Watch daily 5 km products via NOAA CoastWatch
+  ERDDAP (https://coralreefwatch.noaa.gov).
+- **Ocean sensors:** NOAA National Data Buoy Center realtime2 files
+  (https://www.ndbc.noaa.gov).
+
+**AIS rules flag behaviour to review, not wrongdoing.** "Possible loitering",
+"possible AIS gap" and "speed anomaly" have ordinary explanations (a boat tied
+up at a marina, a transponder switched off or out of receiver range, a GPS
+glitch). The thresholds are in `frontend/src/lib/ais.ts` and TESTING.md.
+
 ## Running the checks
 
 Needs Node.js with corepack (tested locally on Node 24; CI uses Node 22). Corepack provides pnpm 9.15.9. `scripts/local-workspace.sh`
