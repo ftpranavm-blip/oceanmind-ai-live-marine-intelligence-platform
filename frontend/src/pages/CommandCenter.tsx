@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Satellite, Waves, Ship, Thermometer, Network, AlertTriangle, TrendingUp, Activity, MapPin } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Progress } from '@/components/ui/progress';
+import { averageRisk, moduleSeverityBand } from '../lib/risk';
+import { simpleGlobalRiskIndex } from '../lib/fusion';
 
 export default function CommandCenter() {
   const navigate = useNavigate();
@@ -21,19 +23,17 @@ export default function CommandCenter() {
   const fusionAlerts = alerts.filter((a) => a.type === 'Fusion');
 
   // Calculate Global Marine Risk Index
-  const avgSatelliteRisk = satelliteData.length > 0
-    ? satelliteData.reduce((sum, d) => sum + d.riskScore, 0) / satelliteData.length
-    : 0;
-  const avgCoralRisk = coralData.length > 0
-    ? coralData.reduce((sum, d) => sum + d.riskScore, 0) / coralData.length
-    : 0;
-  const avgAISRisk = aisData.length > 0
-    ? aisData.reduce((sum, d) => sum + d.riskScore, 0) / aisData.length
-    : 0;
-  const avgIoTRisk = iotData.length > 0
-    ? iotData.reduce((sum, d) => sum + d.riskScore, 0) / iotData.length
-    : 0;
-  const globalRiskIndex = (avgSatelliteRisk + avgCoralRisk + avgAISRisk + avgIoTRisk) / 4;
+  const avgSatelliteRisk = averageRisk(satelliteData);
+  const avgCoralRisk = averageRisk(coralData);
+  const avgAISRisk = averageRisk(aisData);
+  const avgIoTRisk = averageRisk(iotData);
+  const globalRiskIndex = simpleGlobalRiskIndex({
+    satellite: avgSatelliteRisk,
+    coral: avgCoralRisk,
+    ais: avgAISRisk,
+    iot: avgIoTRisk,
+  });
+  const globalRiskBand = moduleSeverityBand(globalRiskIndex);
 
   const modules = [
     {
@@ -142,10 +142,10 @@ export default function CommandCenter() {
                   {globalRiskIndex.toFixed(2)}
                 </span>
                 <Badge 
-                  variant={globalRiskIndex >= 7 ? 'destructive' : 'secondary'} 
+                  variant={globalRiskBand === 'Critical' ? 'destructive' : 'secondary'} 
                   className="text-lg px-4 py-2"
                 >
-                  {globalRiskIndex >= 7 ? 'Critical' : globalRiskIndex >= 4 ? 'Elevated' : 'Normal'}
+                  {globalRiskBand}
                 </Badge>
               </div>
               <Progress value={globalRiskIndex * 10} className="h-4" />

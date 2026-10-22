@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Waves, Thermometer, AlertTriangle, Upload, Satellite } from 'lucide-react';
 import { toast } from 'sonner';
+import { coralRiskScore, isCoralAlert } from '../lib/risk';
 
 export default function CoralModule() {
   const [bleachingProb, setBleachingProb] = useState('0');
@@ -25,11 +26,8 @@ export default function CoralModule() {
   const { data: analyses = [], isLoading } = useGetCoralAnalysisHistory();
   const { data: coralRegions = [] } = useGetCoralRegionCoordinates();
 
-  const calculateRiskScore = () => {
-    const bleaching = parseFloat(bleachingProb) || 0;
-    const stress = parseFloat(thermalStress) || 0;
-    return Math.min((bleaching * 0.6 + stress * 0.4), 10);
-  };
+  const calculateRiskScore = () =>
+    coralRiskScore(parseFloat(bleachingProb) || 0, parseFloat(thermalStress) || 0);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,7 +90,7 @@ export default function CoralModule() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const riskScore = calculateRiskScore();
-    const alertStatus = riskScore >= 6;
+    const alertStatus = isCoralAlert(riskScore);
 
     const selectedRegionData = coralRegions.find(r => r.id === selectedRegion);
     const regionName = selectedRegionData?.name || selectedRegion;
@@ -279,7 +277,7 @@ export default function CoralModule() {
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Calculated Risk Score:</span>
-                    <Badge variant={calculateRiskScore() >= 6 ? 'destructive' : 'secondary'}>
+                    <Badge variant={isCoralAlert(calculateRiskScore()) ? 'destructive' : 'secondary'}>
                       {calculateRiskScore().toFixed(1)} / 10
                     </Badge>
                   </div>
@@ -316,7 +314,7 @@ export default function CoralModule() {
                           <Waves className="w-4 h-4 text-chart-2" />
                           <span className="font-medium text-sm">{analysis.region}</span>
                         </div>
-                        <Badge variant={analysis.riskScore >= 6 ? 'destructive' : 'secondary'}>
+                        <Badge variant={isCoralAlert(analysis.riskScore) ? 'destructive' : 'secondary'}>
                           Risk: {analysis.riskScore.toFixed(1)}
                         </Badge>
                       </div>

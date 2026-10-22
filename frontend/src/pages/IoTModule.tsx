@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Thermometer, Droplets, AlertTriangle, Upload, Waves, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { isIotAlert } from '../lib/risk';
 
 export default function IoTModule() {
   const [riskScore, setRiskScore] = useState('0');
@@ -128,7 +129,7 @@ export default function IoTModule() {
     };
     const region = regionMap[buoyLocation] || 'Unknown Region';
 
-    const alertStatus = score >= 7;
+    const alertStatus = isIotAlert(score);
 
     try {
       await saveAnalysis.mutateAsync({

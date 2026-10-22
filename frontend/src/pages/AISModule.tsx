@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Ship, Navigation, AlertTriangle, Upload, Radio, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { isAisAlert } from '../lib/risk';
 
 export default function AISModule() {
   const [riskScore, setRiskScore] = useState('0');
@@ -85,7 +86,7 @@ export default function AISModule() {
     }
 
     try {
-      const alertStatus = score >= 7;
+      const alertStatus = isAisAlert(score);
 
       await saveAnalysis.mutateAsync({
         dataModule: 'AIS Intelligence',

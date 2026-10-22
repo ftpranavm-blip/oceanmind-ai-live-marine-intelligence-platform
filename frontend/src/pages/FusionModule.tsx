@@ -9,23 +9,23 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AIRecommendations, ActionStep, Stakeholder, ConfidenceLevel } from '../backend';
-
-interface FusionAlert {
-  id: string;
-  type: string;
-  severity: number;
-  description: string;
-  sources: string[];
-  timestamp: number;
-  correlationType: string;
-}
-
-interface CorrelationMetric {
-  name: string;
-  value: number;
-  threshold: number;
-  status: 'normal' | 'warning' | 'critical';
-}
+import {
+  moduleRiskAverages,
+  weightedGlobalRiskIndex,
+  fusionRiskScore as computeFusionRiskScore,
+  fusionIndexBand,
+  fusionIndexPercent,
+  computeCorrelations,
+  selectRecommendationScenario,
+  shouldGenerateRecommendations,
+  confidenceIndicator,
+  isHighRiskAIS,
+  isCoralEmergency,
+  isHighRiskIoT,
+  isMpaViolation,
+  type FusionAlert,
+  type CorrelationMetric,
+} from '../lib/fusion';
 
 export default function FusionModule() {
   const { data: satelliteData = [], isLoading: satelliteLoading } = useGetSatelliteAnalysisHistory();
@@ -50,40 +50,20 @@ export default function FusionModule() {
   const isLoading = satelliteLoading || coralLoading || aisLoading || iotLoading || mapLoading;
 
   // Calculate module risk scores
-  const avgSatelliteRisk = satelliteData.length > 0
-    ? satelliteData.reduce((sum, d) => sum + d.riskScore, 0) / satelliteData.length
-    : 0;
-
-  const avgCoralRisk = coralData.length > 0
-    ? coralData.reduce((sum, d) => sum + d.riskScore, 0) / coralData.length
-    : 0;
-
-  const avgAISRisk = aisData.length > 0
-    ? aisData.reduce((sum, d) => sum + d.riskScore, 0) / aisData.length
-    : 0;
-
-  const avgIoTRisk = iotData.length > 0
-    ? iotData.reduce((sum, d) => sum + d.riskScore, 0) / iotData.length
-    : 0;
-
-  const avgVesselRisk = vessels.length > 0
-    ? vessels.reduce((sum, v) => sum + v.riskScore, 0) / vessels.length
-    : 0;
+  const fusionInputs = { satellite: satelliteData, coral: coralData, ais: aisData, iot: iotData, vessels };
+  const averages = moduleRiskAverages(fusionInputs);
+  const avgSatelliteRisk = averages.satellite;
+  const avgCoralRisk = averages.coral;
+  const avgAISRisk = averages.ais;
+  const avgIoTRisk = averages.iot;
+  const avgVesselRisk = averages.vessel;
 
   // Calculate Global Marine Risk Index with fusion weighting
-  const unifiedRiskIndex = (
-    avgSatelliteRisk * 0.25 +
-    avgCoralRisk * 0.2 +
-    avgAISRisk * 0.25 +
-    avgIoTRisk * 0.15 +
-    avgVesselRisk * 0.15
-  );
+  const unifiedRiskIndex = weightedGlobalRiskIndex(averages);
+  const unifiedRiskBand = fusionIndexBand(unifiedRiskIndex);
 
   // Calculate fusion risk score
-  const fusionRiskScore = Math.min(
-    (avgSatelliteRisk + avgCoralRisk + avgAISRisk + avgIoTRisk + avgVesselRisk) / 5,
-    10
-  );
+  const fusionRiskScore = computeFusionRiskScore(averages);
 
   // Generate AI Recommendations based on current fusion analysis
   const generateAIRecommendations = (): AIRecommendations => {
@@ -99,16 +79,13 @@ export default function FusionModule() {
     let responsibleStakeholders: Stakeholder[] = [];
 
     // Analyze fusion alerts to determine situation
-    const illegalFishingAlerts = fusionAlerts.filter(a => a.correlationType === 'illegal_fishing');
-    const reefEmergencyAlerts = fusionAlerts.filter(a => a.correlationType === 'reef_emergency');
-    const pollutionAlerts = fusionAlerts.filter(a => a.correlationType === 'pollution_correlation');
-    const mpaViolationAlerts = fusionAlerts.filter(a => a.correlationType === 'mpa_violation');
+    const scenario = selectRecommendationScenario(fusionAlerts, unifiedRiskIndex);
 
-    if (illegalFishingAlerts.length > 0) {
+    if (scenario === 'illegal_fishing') {
       riskType = 'Illegal Fishing';
       severityLevel = 'Critical';
       confidenceScore = 0.92;
-      situationSummary = `High-confidence illegal fishing activity detected through multi-source correlation. Satellite imagery shows ${satelliteData.filter(d => d.clusterFlag).length} vessel clusters combined with ${aisData.filter(d => d.riskScore > 0.7).length} high-risk AIS signatures. `;
+      situationSummary = `High-confidence illegal fishing activity detected through multi-source correlation. Satellite imagery shows ${satelliteData.filter(d => d.clusterFlag).length} vessel clusters combined with ${aisData.filter(isHighRiskAIS).length} high-risk AIS signatures. `;
       
       actionableSteps = [
         { action: 'Deploy patrol vessels', description: 'Dispatch coast guard or naval vessels to identified high-risk zones for immediate investigation', priority: 'High' },
@@ -122,11 +99,11 @@ export default function FusionModule() {
         { name: 'Fisheries Management Authority', type: 'Regulatory', contactInfo: 'enforcement@fisheries.gov' },
         { name: 'Maritime Surveillance Center', type: 'Intelligence', contactInfo: 'surveillance@maritime.intel' },
       ];
-    } else if (reefEmergencyAlerts.length > 0) {
+    } else if (scenario === 'reef_emergency') {
       riskType = 'Reef Emergency';
       severityLevel = 'High';
       confidenceScore = 0.88;
-      situationSummary = `Critical coral bleaching event detected in ${coralData.filter(d => d.riskScore > 0.6 && d.thermalStress > 0.6).length} reef regions. Elevated thermal stress combined with high bleaching probability indicates immediate ecosystem threat. `;
+      situationSummary = `Critical coral bleaching event detected in ${coralData.filter(isCoralEmergency).length} reef regions. Elevated thermal stress combined with high bleaching probability indicates immediate ecosystem threat. `;
       
       actionableSteps = [
         { action: 'Deploy research teams', description: 'Send marine biologists to affected reef areas for on-site assessment and documentation', priority: 'High' },
@@ -140,11 +117,11 @@ export default function FusionModule() {
         { name: 'Environmental Protection Agency', type: 'Regulatory', contactInfo: 'coral.protection@epa.gov' },
         { name: 'Reef Conservation Network', type: 'Conservation', contactInfo: 'emergency@reefconservation.org' },
       ];
-    } else if (pollutionAlerts.length > 0) {
+    } else if (scenario === 'pollution') {
       riskType = 'Pollution Event';
       severityLevel = 'High';
       confidenceScore = 0.90;
-      situationSummary = `Multi-source pollution correlation detected. Satellite imagery shows ${satelliteData.filter(d => d.pollutionFlag).length} pollution patterns confirmed by ${iotData.filter(d => d.riskScore > 0.6).length} IoT sensor anomalies indicating water quality degradation. `;
+      situationSummary = `Multi-source pollution correlation detected. Satellite imagery shows ${satelliteData.filter(d => d.pollutionFlag).length} pollution patterns confirmed by ${iotData.filter(isHighRiskIoT).length} IoT sensor anomalies indicating water quality degradation. `;
       
       actionableSteps = [
         { action: 'Identify pollution source', description: 'Conduct immediate investigation to locate and identify the source of contamination', priority: 'High' },
@@ -158,11 +135,11 @@ export default function FusionModule() {
         { name: 'Port Authority', type: 'Regulatory', contactInfo: 'pollution.control@port.authority' },
         { name: 'Public Health Department', type: 'Health & Safety', contactInfo: 'marine.health@publichealth.gov' },
       ];
-    } else if (mpaViolationAlerts.length > 0) {
+    } else if (scenario === 'mpa_violation') {
       riskType = 'MPA Violation';
       severityLevel = 'High';
       confidenceScore = 0.87;
-      situationSummary = `Multiple vessels detected inside Marine Protected Areas. ${satelliteData.filter(d => d.marina_area_flag && Number(d.vesselCount) > 5).length} MPA violations identified through satellite monitoring. `;
+      situationSummary = `Multiple vessels detected inside Marine Protected Areas. ${satelliteData.filter(isMpaViolation).length} MPA violations identified through satellite monitoring. `;
       
       actionableSteps = [
         { action: 'Intercept violating vessels', description: 'Deploy enforcement vessels to intercept and inspect vessels in protected areas', priority: 'High' },
@@ -176,7 +153,7 @@ export default function FusionModule() {
         { name: 'Coast Guard', type: 'Law Enforcement', contactInfo: 'mpa.violations@coastguard.gov' },
         { name: 'Conservation Officers', type: 'Field Operations', contactInfo: 'field.ops@conservation.gov' },
       ];
-    } else if (unifiedRiskIndex > 0.5) {
+    } else if (scenario === 'elevated') {
       riskType = 'Elevated Risk';
       severityLevel = 'Medium';
       confidenceScore = 0.82;
@@ -230,7 +207,7 @@ export default function FusionModule() {
       {
         category: 'Overall Assessment',
         value: confidenceScore,
-        indicator: confidenceScore >= 0.85 ? 'High' : confidenceScore >= 0.70 ? 'Medium' : 'Low',
+        indicator: confidenceIndicator(confidenceScore),
       },
     ];
 
@@ -256,168 +233,9 @@ export default function FusionModule() {
   useEffect(() => {
     if (isLoading) return;
 
-    const newFusionAlerts: FusionAlert[] = [];
-    const newCorrelationMetrics: CorrelationMetric[] = [];
-
-    // Correlation 1: Illegal Fishing Detection (AIS + Satellite)
-    const highAIS = aisData.filter(d => d.riskScore > 0.7);
-    const satelliteClusters = satelliteData.filter(d => d.clusterFlag);
-    const illegalFishingCorrelation = (highAIS.length + satelliteClusters.length) / 2;
-    
-    newCorrelationMetrics.push({
-      name: 'Illegal Fishing Risk',
-      value: illegalFishingCorrelation,
-      threshold: 3,
-      status: illegalFishingCorrelation >= 5 ? 'critical' : illegalFishingCorrelation >= 3 ? 'warning' : 'normal',
-    });
-
-    if (highAIS.length > 0 && satelliteClusters.length > 0) {
-      const alertId = `fusion_illegal_fishing_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'Illegal Fishing',
-          severity: 9,
-          description: `High AIS risk (${highAIS.length} vessels) combined with satellite vessel clustering (${satelliteClusters.length} clusters) detected`,
-          sources: ['AIS Intelligence', 'Satellite Intelligence'],
-          timestamp: Date.now(),
-          correlationType: 'illegal_fishing',
-        });
-      }
-    }
-
-    // Correlation 2: Reef Emergency (Coral + Temperature)
-    const highCoralRisk = coralData.filter(d => d.riskScore > 0.6 && d.thermalStress > 0.6);
-    const reefEmergencyCorrelation = highCoralRisk.length;
-    
-    newCorrelationMetrics.push({
-      name: 'Reef Emergency Risk',
-      value: reefEmergencyCorrelation,
-      threshold: 2,
-      status: reefEmergencyCorrelation >= 4 ? 'critical' : reefEmergencyCorrelation >= 2 ? 'warning' : 'normal',
-    });
-
-    if (highCoralRisk.length > 0) {
-      const alertId = `fusion_reef_emergency_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'Reef Emergency',
-          severity: 8,
-          description: `Critical coral bleaching risk detected in ${highCoralRisk.length} regions with elevated thermal stress`,
-          sources: ['Coral Intelligence', 'NOAA Temperature Data'],
-          timestamp: Date.now(),
-          correlationType: 'reef_emergency',
-        });
-      }
-    }
-
-    // Correlation 3: Pollution Detection (Satellite + IoT)
-    const pollutionDetected = satelliteData.filter(d => d.pollutionFlag);
-    const highIoTRisk = iotData.filter(d => d.riskScore > 0.6);
-    const pollutionCorrelation = (pollutionDetected.length + highIoTRisk.length) / 2;
-    
-    newCorrelationMetrics.push({
-      name: 'Pollution Risk',
-      value: pollutionCorrelation,
-      threshold: 2,
-      status: pollutionCorrelation >= 4 ? 'critical' : pollutionCorrelation >= 2 ? 'warning' : 'normal',
-    });
-
-    if (pollutionDetected.length > 0 && highIoTRisk.length > 0) {
-      const alertId = `fusion_pollution_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'Pollution Correlation',
-          severity: 7,
-          description: `Satellite pollution patterns (${pollutionDetected.length} areas) confirmed by IoT sensor anomalies (${highIoTRisk.length} sensors)`,
-          sources: ['Satellite Intelligence', 'IoT Sensors'],
-          timestamp: Date.now(),
-          correlationType: 'pollution_correlation',
-        });
-      }
-    }
-
-    // Correlation 4: MPA Violation (Satellite + Vessel Density)
-    const mpaViolations = satelliteData.filter(d => d.marina_area_flag && Number(d.vesselCount) > 5);
-    const mpaCorrelation = mpaViolations.length;
-    
-    newCorrelationMetrics.push({
-      name: 'MPA Violation Risk',
-      value: mpaCorrelation,
-      threshold: 1,
-      status: mpaCorrelation >= 3 ? 'critical' : mpaCorrelation >= 1 ? 'warning' : 'normal',
-    });
-
-    if (mpaViolations.length > 0) {
-      const alertId = `fusion_mpa_violation_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'MPA Violation',
-          severity: 9,
-          description: `Multiple vessels detected inside Marine Protected Areas (${mpaViolations.length} violations)`,
-          sources: ['Satellite Intelligence', 'Live Ocean Map'],
-          timestamp: Date.now(),
-          correlationType: 'mpa_violation',
-        });
-      }
-    }
-
-    // Correlation 5: Vessel Density + Coral Bleaching
-    const highVesselDensity = vessels.filter(v => v.riskScore > 0.5).length;
-    const coralBleachingAreas = coralData.filter(d => d.bleachingProbability > 0.6).length;
-    const vesselCoralCorrelation = (highVesselDensity + coralBleachingAreas) / 2;
-    
-    newCorrelationMetrics.push({
-      name: 'Vessel-Coral Impact',
-      value: vesselCoralCorrelation,
-      threshold: 3,
-      status: vesselCoralCorrelation >= 5 ? 'critical' : vesselCoralCorrelation >= 3 ? 'warning' : 'normal',
-    });
-
-    if (highVesselDensity > 2 && coralBleachingAreas > 0) {
-      const alertId = `fusion_vessel_coral_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'Vessel-Coral Impact',
-          severity: 7,
-          description: `High vessel density (${highVesselDensity} vessels) near coral bleaching zones (${coralBleachingAreas} areas)`,
-          sources: ['Live Ocean Map', 'Coral Intelligence'],
-          timestamp: Date.now(),
-          correlationType: 'vessel_coral_impact',
-        });
-      }
-    }
-
-    // Correlation 6: SST + Pollution Indicators
-    const highThermalStress = coralData.filter(d => d.thermalStress > 0.7).length;
-    const pollutionIndicators = iotData.filter(d => d.dataType.toLowerCase().includes('turbidity') && d.riskScore > 0.6).length;
-    const sstPollutionCorrelation = (highThermalStress + pollutionIndicators) / 2;
-    
-    newCorrelationMetrics.push({
-      name: 'SST-Pollution Correlation',
-      value: sstPollutionCorrelation,
-      threshold: 2,
-      status: sstPollutionCorrelation >= 4 ? 'critical' : sstPollutionCorrelation >= 2 ? 'warning' : 'normal',
-    });
-
-    if (highThermalStress > 0 && pollutionIndicators > 0) {
-      const alertId = `fusion_sst_pollution_${Date.now()}`;
-      if (!processedAlertsRef.current.has(alertId)) {
-        newFusionAlerts.push({
-          id: alertId,
-          type: 'Climate-Pollution',
-          severity: 8,
-          description: `Elevated sea surface temperature (${highThermalStress} areas) combined with pollution indicators (${pollutionIndicators} sensors)`,
-          sources: ['Coral Intelligence', 'IoT Sensors'],
-          timestamp: Date.now(),
-          correlationType: 'climate_pollution',
-        });
-      }
-    }
+    // Correlation rules live in lib/fusion.ts
+    const { metrics: newCorrelationMetrics, alerts: correlatedAlerts } = computeCorrelations(fusionInputs, Date.now());
+    const newFusionAlerts = correlatedAlerts.filter(a => !processedAlertsRef.current.has(a.id));
 
     // Update state with new fusion alerts and correlations
     setFusionAlerts(newFusionAlerts);
@@ -425,7 +243,7 @@ export default function FusionModule() {
     setLastUpdateTime(Date.now());
 
     // Generate AI recommendations when analysis completes
-    if (newFusionAlerts.length > 0 || unifiedRiskIndex > 0.3) {
+    if (shouldGenerateRecommendations(newFusionAlerts.length, unifiedRiskIndex)) {
       const recommendations = generateAIRecommendations();
       const newRecommendationId = recommendations.id;
       
@@ -574,13 +392,13 @@ export default function FusionModule() {
                   {unifiedRiskIndex.toFixed(2)}
                 </span>
                 <Badge 
-                  variant={unifiedRiskIndex >= 0.7 ? 'destructive' : unifiedRiskIndex >= 0.4 ? 'secondary' : 'outline'} 
+                  variant={unifiedRiskBand === 'Critical' ? 'destructive' : unifiedRiskBand === 'Elevated' ? 'secondary' : 'outline'} 
                   className="text-lg px-4 py-2"
                 >
-                  {unifiedRiskIndex >= 0.7 ? 'Critical' : unifiedRiskIndex >= 0.4 ? 'Elevated' : 'Normal'}
+                  {unifiedRiskBand}
                 </Badge>
               </div>
-              <Progress value={unifiedRiskIndex * 100} className="h-4" />
+              <Progress value={fusionIndexPercent(unifiedRiskIndex)} className="h-4" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Activity className="w-4 h-4" />
                 <span>Live correlation from {satelliteData.length + coralData.length + aisData.length + iotData.length + vessels.length} data sources</span>
@@ -782,19 +600,19 @@ export default function FusionModule() {
                   </div>
                   <div className="p-4 rounded-lg bg-muted/50 text-center hover:bg-muted transition-colors">
                     <div className="text-2xl font-bold text-chart-2">
-                      {coralData.filter(d => d.riskScore > 0.6 && d.thermalStress > 0.6).length}
+                      {coralData.filter(isCoralEmergency).length}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">Coral Emergencies</div>
                   </div>
                   <div className="p-4 rounded-lg bg-muted/50 text-center hover:bg-muted transition-colors">
                     <div className="text-2xl font-bold text-chart-3">
-                      {aisData.filter(d => d.riskScore > 0.7).length}
+                      {aisData.filter(isHighRiskAIS).length}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">High-Risk Vessels</div>
                   </div>
                   <div className="p-4 rounded-lg bg-muted/50 text-center hover:bg-muted transition-colors">
                     <div className="text-2xl font-bold text-chart-4">
-                      {iotData.filter(d => d.riskScore > 0.6).length}
+                      {iotData.filter(isHighRiskIoT).length}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">Sensor Anomalies</div>
                   </div>
@@ -806,7 +624,7 @@ export default function FusionModule() {
                   </div>
                   <div className="p-4 rounded-lg bg-muted/50 text-center hover:bg-muted transition-colors">
                     <div className="text-2xl font-bold text-destructive">
-                      {satelliteData.filter(d => d.marina_area_flag && Number(d.vesselCount) > 5).length}
+                      {satelliteData.filter(isMpaViolation).length}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">MPA Violations</div>
                   </div>

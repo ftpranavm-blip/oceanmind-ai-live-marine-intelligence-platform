@@ -10,6 +10,7 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import Principal "mo:core/Principal";
 import Float "mo:core/Float";
 import Migration "migration";
+import AnalysisRules "analysis-rules";
 import Runtime "mo:core/Runtime";
 
 // Explicit data migration to restore stable persistent state.
@@ -349,6 +350,7 @@ actor {
   let alerts = Map.empty<Text, Alert>();
   let satelliteAnalyses = Map.empty<Text, SatelliteAnalysis>();
   let coralAnalyses = Map.empty<Text, CoralAnalysis>();
+  var nextCoralSeq : Nat = 0;
   let aisAnalyses = Map.empty<Text, AISAnalysis>();
   let iotAnalyses = Map.empty<Text, IoTAnalysis>();
   let aisData = Map.empty<Text, AISData>();
@@ -560,13 +562,14 @@ actor {
       bleachingProbability;
       thermalStress;
       riskScore;
-      alertStatus = false; // Placeholder, implement risk logic
+      alertStatus = AnalysisRules.coralAlertStatus(riskScore);
       dataType;
       timestamp = Time.now();
       owner = caller;
     };
 
-    coralAnalyses.add(region, analysis);
+    coralAnalyses.add(AnalysisRules.coralRecordKey(region, nextCoralSeq), analysis);
+    nextCoralSeq += 1;
     true;
   };
 
@@ -596,7 +599,7 @@ actor {
       region;
       vesselIDs;
       riskScore;
-      alertStatus = false; // Placeholder, implement logic if needed
+      alertStatus = AnalysisRules.aisAlertStatus(riskScore);
       timestamp = Time.now();
       owner = caller;
     };
@@ -631,7 +634,7 @@ actor {
       region;
       dataType;
       riskScore;
-      alertStatus = false; // Placeholder, implement logic if needed
+      alertStatus = AnalysisRules.iotAlertStatus(riskScore);
       timestamp = Time.now();
       owner = caller;
     };

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Satellite, MapPin, AlertTriangle, Upload, Globe, Radar } from 'lucide-react';
 import { toast } from 'sonner';
+import { satelliteRiskScore, isSatelliteHighRisk } from '../lib/risk';
 
 export default function SatelliteModule() {
   const [vesselCount, setVesselCount] = useState('0');
@@ -32,16 +33,14 @@ export default function SatelliteModule() {
   const { data: analyses = [], isLoading } = useGetSatelliteAnalysisHistory();
   const { data: regions = [] } = useGetRegionCoordinates();
 
-  const calculateRiskScore = () => {
-    let score = 0;
-    const count = parseInt(vesselCount) || 0;
-    score += Math.min(count * 0.5, 3);
-    if (clusterFlag) score += 2;
-    if (pollutionFlag) score += 2.5;
-    if (nearCoral) score += 1.5;
-    if (marineProtectedAreaFlag) score += 3;
-    return Math.min(score, 10);
-  };
+  const calculateRiskScore = () =>
+    satelliteRiskScore({
+      vesselCount: parseInt(vesselCount) || 0,
+      clusterFlag,
+      pollutionFlag,
+      nearCoral,
+      marineProtectedAreaFlag,
+    });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -132,7 +131,7 @@ export default function SatelliteModule() {
       });
 
       // Auto-generate alerts based on risk
-      if (riskScore >= 7) {
+      if (isSatelliteHighRisk(riskScore)) {
         const alertType = marineProtectedAreaFlag ? 'MPA Violation' : pollutionFlag ? 'Pollution Event' : 'Illegal Fishing';
         toast.success(`High-risk alert automatically generated: ${alertType}`);
       }
@@ -389,7 +388,7 @@ export default function SatelliteModule() {
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Calculated Risk Score:</span>
-                    <Badge variant={calculateRiskScore() >= 7 ? 'destructive' : 'secondary'}>
+                    <Badge variant={isSatelliteHighRisk(calculateRiskScore()) ? 'destructive' : 'secondary'}>
                       {calculateRiskScore().toFixed(1)} / 10
                     </Badge>
                   </div>
@@ -428,7 +427,7 @@ export default function SatelliteModule() {
                             {getRegionName(analysis.region)}
                           </span>
                         </div>
-                        <Badge variant={analysis.riskScore >= 7 ? 'destructive' : 'secondary'}>
+                        <Badge variant={isSatelliteHighRisk(analysis.riskScore) ? 'destructive' : 'secondary'}>
                           Risk: {analysis.riskScore.toFixed(1)}
                         </Badge>
                       </div>
