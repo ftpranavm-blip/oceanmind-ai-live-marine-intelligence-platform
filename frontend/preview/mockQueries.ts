@@ -29,3 +29,5 @@ export const useGetCoralAnalysisHistory = emptyHistory;
 export const useSaveCoralAnalysis = useRecordingSave;
 export const useGetIoTAnalysisHistory = emptyHistory;
 export const useSaveIoTAnalysis = useRecordingSave;
+export const useGetAISAnalysisHistory = emptyHistory;
+export const useSaveAISAnalysis = useRecordingSave;
