@@ -408,7 +408,7 @@ export default function LiveOceanMapModule() {
               <Navigation className="w-5 h-5" />
               Live Vessel Tracking
             </CardTitle>
-            <CardDescription>Real-time vessel positions with risk assessment • Auto-refresh every 45 seconds</CardDescription>
+            <CardDescription>Sample vessel data (fixed demo vessels from the backend) with risk assessment • Refreshes every 45 seconds</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="relative aspect-[16/9] rounded-lg overflow-hidden border border-border">
@@ -471,7 +471,7 @@ export default function LiveOceanMapModule() {
           <Card>
             <CardHeader>
               <CardTitle>Tracked Vessels</CardTitle>
-              <CardDescription>Live vessel data with risk assessment</CardDescription>
+              <CardDescription>Sample vessel data with risk assessment</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">

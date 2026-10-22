@@ -50,7 +50,7 @@ export default function CoralModule() {
     }
 
     setAnalyzing(true);
-    toast.info('Running AI bleaching detection...');
+    toast.info('Generating simulated bleaching reading...');
 
     // Simulate AI analysis
     await new Promise(resolve => setTimeout(resolve, 2500));
@@ -62,13 +62,13 @@ export default function CoralModule() {
     setThermalStress(simulatedStress);
 
     setAnalyzing(false);
-    toast.success('AI analysis complete! Bleaching probability calculated.');
+    toast.success('Simulated bleaching reading generated.');
   };
 
   const handleNoaaFetch = async () => {
     setFetchingNoaa(true);
     setDataType('sst');
-    toast.info('Fetching live data from NOAA Coral Reef Watch...');
+    toast.info('Generating simulated temperature reading...');
 
     // Simulate NOAA API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -84,7 +84,7 @@ export default function CoralModule() {
     setBleachingProb(bleachingEstimate);
 
     setFetchingNoaa(false);
-    toast.success(`Live temperature data retrieved: ${simulatedTemp}°C`);
+    toast.success(`Simulated temperature: ${simulatedTemp}°C`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,7 +131,7 @@ export default function CoralModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Coral Intelligence Module</h1>
-            <p className="text-muted-foreground">Live AI bleaching detection & NOAA thermal stress monitoring</p>
+            <p className="text-muted-foreground">Bleaching and thermal stress risk scoring (simulated readings)</p>
           </div>
         </div>
 
@@ -150,8 +150,8 @@ export default function CoralModule() {
           {/* Analysis Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Live Coral Analysis</CardTitle>
-              <CardDescription>Upload coral images or fetch NOAA live data</CardDescription>
+              <CardTitle>Coral Analysis (Simulated)</CardTitle>
+              <CardDescription>Upload an image or generate a simulated reading; no image model or NOAA call is used</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="upload" className="space-y-4">
@@ -162,7 +162,7 @@ export default function CoralModule() {
                   </TabsTrigger>
                   <TabsTrigger value="noaa">
                     <Satellite className="w-4 h-4 mr-2" />
-                    NOAA Live Data
+                    Simulated NOAA
                   </TabsTrigger>
                 </TabsList>
 
@@ -203,7 +203,7 @@ export default function CoralModule() {
                     disabled={!imageFile || analyzing}
                     className="w-full"
                   >
-                    {analyzing ? 'Analyzing...' : 'Run AI Analysis'}
+                    {analyzing ? 'Generating...' : 'Generate Simulated Reading'}
                   </Button>
                 </TabsContent>
 
@@ -225,9 +225,9 @@ export default function CoralModule() {
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                    <div className="font-medium">NOAA Coral Reef Watch API</div>
+                    <div className="font-medium">Simulated NOAA Coral Reef Watch reading</div>
                     <div className="text-xs text-muted-foreground">
-                      Real-time sea surface temperature and thermal stress data
+                      Sea surface temperature and thermal stress are generated randomly, not fetched
                     </div>
                   </div>
 
@@ -236,7 +236,7 @@ export default function CoralModule() {
                     disabled={fetchingNoaa}
                     className="w-full"
                   >
-                    {fetchingNoaa ? 'Fetching...' : 'Fetch Live Temperature Data'}
+                    {fetchingNoaa ? 'Generating...' : 'Generate Simulated Temperature'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -300,7 +300,7 @@ export default function CoralModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : analyses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No analyses yet. Upload a coral image or fetch NOAA data to start.
+                  No analyses yet. Generate a simulated reading to start.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">

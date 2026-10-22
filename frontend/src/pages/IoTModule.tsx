@@ -49,7 +49,7 @@ export default function IoTModule() {
     }
 
     setAnalyzing(true);
-    toast.info('Analyzing IoT sensor data...');
+    toast.info('Generating simulated sensor reading...');
 
     // Simulate CSV parsing and analysis
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -71,12 +71,12 @@ export default function IoTModule() {
     });
 
     setAnalyzing(false);
-    toast.success('IoT data analysis complete!');
+    toast.success('Simulated sensor reading generated.');
   };
 
   const handleBuoyFetch = async () => {
     setFetchingBuoy(true);
-    toast.info('Fetching live data from NOAA buoy network...');
+    toast.info('Generating simulated buoy reading...');
 
     // Simulate NOAA buoy API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -103,7 +103,7 @@ export default function IoTModule() {
     setRiskScore(Math.min(risk, 10).toFixed(1));
 
     setFetchingBuoy(false);
-    toast.success('Live buoy data retrieved successfully!');
+    toast.success('Simulated buoy reading generated.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -166,7 +166,7 @@ export default function IoTModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">IoT Ocean Intelligence Module</h1>
-            <p className="text-muted-foreground">Live ocean parameter monitoring & climate stress detection</p>
+            <p className="text-muted-foreground">Ocean parameter risk scoring (simulated readings)</p>
           </div>
         </div>
 
@@ -185,8 +185,8 @@ export default function IoTModule() {
           {/* Data Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Live IoT Data</CardTitle>
-              <CardDescription>Upload sensor CSV or connect to NOAA buoy network</CardDescription>
+              <CardTitle>IoT Data (Simulated)</CardTitle>
+              <CardDescription>The CSV is not parsed yet; sensor values are generated randomly</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="csv" className="space-y-4">
@@ -197,7 +197,7 @@ export default function IoTModule() {
                   </TabsTrigger>
                   <TabsTrigger value="buoy">
                     <Waves className="w-4 h-4 mr-2" />
-                    NOAA Buoy
+                    Simulated Buoy
                   </TabsTrigger>
                 </TabsList>
 
@@ -249,9 +249,9 @@ export default function IoTModule() {
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                    <div className="font-medium">NOAA Buoy Network</div>
+                    <div className="font-medium">Simulated NOAA buoy reading</div>
                     <div className="text-xs text-muted-foreground">
-                      Real-time ocean parameter monitoring
+                      Temperature, pH, turbidity and oxygen are generated randomly, not fetched
                     </div>
                   </div>
 
@@ -260,7 +260,7 @@ export default function IoTModule() {
                     disabled={fetchingBuoy}
                     className="w-full"
                   >
-                    {fetchingBuoy ? 'Fetching...' : 'Fetch Live Buoy Data'}
+                    {fetchingBuoy ? 'Generating...' : 'Generate Simulated Buoy Data'}
                   </Button>
 
                   {parseFloat(sensorData.temperature) > 0 && (

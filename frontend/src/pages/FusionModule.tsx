@@ -96,9 +96,9 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Coast Guard Operations', type: 'Enforcement', contactInfo: 'coastguard.ops@maritime.gov' },
-        { name: 'Fisheries Management Authority', type: 'Regulatory', contactInfo: 'enforcement@fisheries.gov' },
-        { name: 'Maritime Surveillance Center', type: 'Intelligence', contactInfo: 'surveillance@maritime.intel' },
+        { name: 'Coast Guard Operations', type: 'Enforcement', contactInfo: 'coastguard-ops@example.org (placeholder)' },
+        { name: 'Fisheries Management Authority', type: 'Regulatory', contactInfo: 'enforcement@example.org (placeholder)' },
+        { name: 'Maritime Surveillance Center', type: 'Intelligence', contactInfo: 'surveillance@example.org (placeholder)' },
       ];
     } else if (scenario === 'reef_emergency') {
       riskType = 'Reef Emergency';
@@ -114,9 +114,9 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Marine Research Institute', type: 'Scientific', contactInfo: 'research@marine.institute' },
-        { name: 'Environmental Protection Agency', type: 'Regulatory', contactInfo: 'coral.protection@epa.gov' },
-        { name: 'Reef Conservation Network', type: 'Conservation', contactInfo: 'emergency@reefconservation.org' },
+        { name: 'Marine Research Institute', type: 'Scientific', contactInfo: 'research@example.org (placeholder)' },
+        { name: 'Environmental Protection Agency', type: 'Regulatory', contactInfo: 'coral-protection@example.org (placeholder)' },
+        { name: 'Reef Conservation Network', type: 'Conservation', contactInfo: 'emergency@example.org (placeholder)' },
       ];
     } else if (scenario === 'pollution') {
       riskType = 'Pollution Event';
@@ -132,9 +132,9 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Environmental Response Team', type: 'Emergency Response', contactInfo: 'emergency@environmental.response' },
-        { name: 'Port Authority', type: 'Regulatory', contactInfo: 'pollution.control@port.authority' },
-        { name: 'Public Health Department', type: 'Health & Safety', contactInfo: 'marine.health@publichealth.gov' },
+        { name: 'Environmental Response Team', type: 'Emergency Response', contactInfo: 'emergency@example.org (placeholder)' },
+        { name: 'Port Authority', type: 'Regulatory', contactInfo: 'pollution-control@example.org (placeholder)' },
+        { name: 'Public Health Department', type: 'Health & Safety', contactInfo: 'marine-health@example.org (placeholder)' },
       ];
     } else if (scenario === 'mpa_violation') {
       riskType = 'MPA Violation';
@@ -150,9 +150,9 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Marine Protected Area Authority', type: 'Enforcement', contactInfo: 'enforcement@mpa.authority' },
-        { name: 'Coast Guard', type: 'Law Enforcement', contactInfo: 'mpa.violations@coastguard.gov' },
-        { name: 'Conservation Officers', type: 'Field Operations', contactInfo: 'field.ops@conservation.gov' },
+        { name: 'Marine Protected Area Authority', type: 'Enforcement', contactInfo: 'enforcement@example.org (placeholder)' },
+        { name: 'Coast Guard', type: 'Law Enforcement', contactInfo: 'mpa-violations@example.org (placeholder)' },
+        { name: 'Conservation Officers', type: 'Field Operations', contactInfo: 'field-ops@example.org (placeholder)' },
       ];
     } else if (scenario === 'elevated') {
       riskType = 'Elevated Risk';
@@ -167,8 +167,8 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Maritime Operations Center', type: 'Coordination', contactInfo: 'operations@maritime.center' },
-        { name: 'Environmental Monitoring Agency', type: 'Monitoring', contactInfo: 'monitoring@environmental.agency' },
+        { name: 'Maritime Operations Center', type: 'Coordination', contactInfo: 'operations@example.org (placeholder)' },
+        { name: 'Environmental Monitoring Agency', type: 'Monitoring', contactInfo: 'monitoring@example.org (placeholder)' },
       ];
     } else {
       situationSummary += `All monitoring systems report normal conditions. Global risk index: ${unifiedRiskIndex.toFixed(2)}. Continue routine monitoring and data collection.`;
@@ -179,7 +179,7 @@ export default function FusionModule() {
       ];
 
       responsibleStakeholders = [
-        { name: 'Maritime Operations Center', type: 'Coordination', contactInfo: 'operations@maritime.center' },
+        { name: 'Maritime Operations Center', type: 'Coordination', contactInfo: 'operations@example.org (placeholder)' },
       ];
     }
 
@@ -762,6 +762,9 @@ export default function FusionModule() {
                           <div className="text-xs text-muted-foreground">
                             <Badge variant="outline" className="text-xs mb-2">
                               {stakeholder.type}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs mb-2 ml-1">
+                              Placeholder contact
                             </Badge>
                             <div className="mt-1">{stakeholder.contactInfo}</div>
                           </div>

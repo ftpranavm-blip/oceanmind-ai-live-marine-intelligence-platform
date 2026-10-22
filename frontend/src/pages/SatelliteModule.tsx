@@ -62,7 +62,7 @@ export default function SatelliteModule() {
     }
 
     setAnalyzing(true);
-    toast.info('Analyzing satellite imagery...');
+    toast.info('Generating simulated satellite reading...');
 
     // Simulate AI analysis with random results
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -80,7 +80,7 @@ export default function SatelliteModule() {
     setMarineProtectedAreaFlag(simulatedMPA);
 
     setAnalyzing(false);
-    toast.success('Analysis complete! Review results below.');
+    toast.success('Simulated reading generated. Review values below.');
   };
 
   const handleGEEAnalysis = async () => {
@@ -89,7 +89,7 @@ export default function SatelliteModule() {
       return;
     }
 
-    toast.info('Fetching live satellite data from Google Earth Engine...');
+    toast.info('Generating simulated satellite reading...');
     setAnalyzing(true);
 
     // Simulate GEE API call
@@ -108,7 +108,7 @@ export default function SatelliteModule() {
     setMarineProtectedAreaFlag(simulatedMPA);
 
     setAnalyzing(false);
-    toast.success('Live satellite data retrieved successfully!');
+    toast.success('Simulated satellite reading generated.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,7 +164,7 @@ export default function SatelliteModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Satellite Intelligence Module</h1>
-            <p className="text-muted-foreground">Live vessel tracking, pollution detection & MPA monitoring</p>
+            <p className="text-muted-foreground">Vessel, pollution & MPA risk scoring (simulated readings)</p>
           </div>
         </div>
 
@@ -183,8 +183,8 @@ export default function SatelliteModule() {
           {/* Analysis Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Live Satellite Analysis</CardTitle>
-              <CardDescription>Upload imagery or connect to Google Earth Engine</CardDescription>
+              <CardTitle>Satellite Analysis (Simulated)</CardTitle>
+              <CardDescription>Upload an image or generate a simulated reading; no imagery is analysed and no Earth Engine call is made</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="upload" className="space-y-4">
@@ -195,7 +195,7 @@ export default function SatelliteModule() {
                   </TabsTrigger>
                   <TabsTrigger value="gee">
                     <Globe className="w-4 h-4 mr-2" />
-                    Google Earth Engine
+                    Simulated Earth Engine
                   </TabsTrigger>
                 </TabsList>
 
@@ -220,7 +220,7 @@ export default function SatelliteModule() {
                     disabled={!imageFile || analyzing}
                     className="w-full"
                   >
-                    {analyzing ? 'Analyzing...' : 'Analyze Image'}
+                    {analyzing ? 'Generating...' : 'Generate Simulated Reading'}
                   </Button>
                 </TabsContent>
 
@@ -322,7 +322,7 @@ export default function SatelliteModule() {
                     disabled={analyzing}
                     className="w-full"
                   >
-                    {analyzing ? 'Fetching Data...' : 'Fetch Live Data'}
+                    {analyzing ? 'Generating...' : 'Generate Simulated Data'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -411,7 +411,7 @@ export default function SatelliteModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : analyses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No analyses yet. Upload an image or connect to GEE to start.
+                  No analyses yet. Generate a simulated reading to start.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">

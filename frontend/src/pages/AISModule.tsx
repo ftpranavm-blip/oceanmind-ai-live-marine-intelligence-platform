@@ -41,7 +41,7 @@ export default function AISModule() {
     }
 
     setAnalyzing(true);
-    toast.info('Analyzing AIS data: vessel routes, speed, loitering...');
+    toast.info('Generating simulated AIS reading...');
 
     // Simulate CSV parsing and analysis
     await new Promise(resolve => setTimeout(resolve, 2500));
@@ -54,12 +54,12 @@ export default function AISModule() {
     setVesselIDs(simulatedVessels.join(', '));
 
     setAnalyzing(false);
-    toast.success('AIS analysis complete! Behavioral patterns detected.');
+    toast.success('Simulated AIS reading generated.');
   };
 
   const handleLiveStream = async () => {
     setLiveStreaming(true);
-    toast.info('Starting live AIS stream simulation...');
+    toast.info('Generating simulated AIS stream reading...');
 
     // Simulate live streaming
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -72,7 +72,7 @@ export default function AISModule() {
     setVesselIDs(simulatedVessels.join(', '));
 
     setLiveStreaming(false);
-    toast.success('Live AIS data stream processed!');
+    toast.success('Simulated AIS stream reading generated.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,7 +123,7 @@ export default function AISModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">AIS Intelligence Module</h1>
-            <p className="text-muted-foreground">Live vessel tracking, behavior analytics & illegal fishing detection</p>
+            <p className="text-muted-foreground">Vessel behaviour risk scoring (simulated readings)</p>
           </div>
         </div>
 
@@ -142,8 +142,8 @@ export default function AISModule() {
           {/* Data Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Live AIS Analysis</CardTitle>
-              <CardDescription>Upload CSV data or connect to live AIS stream</CardDescription>
+              <CardTitle>AIS Analysis (Simulated)</CardTitle>
+              <CardDescription>The CSV is not parsed yet; risk and vessel IDs are generated randomly</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="csv" className="space-y-4">
@@ -154,7 +154,7 @@ export default function AISModule() {
                   </TabsTrigger>
                   <TabsTrigger value="stream">
                     <Radio className="w-4 h-4 mr-2" />
-                    Live Stream
+                    Simulated Stream
                   </TabsTrigger>
                 </TabsList>
 
@@ -193,10 +193,10 @@ export default function AISModule() {
                   <div className="p-4 rounded-lg bg-muted/50 space-y-2">
                     <div className="flex items-center gap-2">
                       <Radio className="w-4 h-4 text-chart-3" />
-                      <span className="font-medium">Live AIS Stream</span>
+                      <span className="font-medium">Simulated AIS Stream</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Connect to real-time AIS data feed for continuous vessel monitoring
+                      Generates a random risk score and vessel IDs; no AIS feed is connected
                     </p>
                   </div>
 
@@ -215,7 +215,7 @@ export default function AISModule() {
                     disabled={liveStreaming}
                     className="w-full"
                   >
-                    {liveStreaming ? 'Processing Stream...' : 'Start Live Stream'}
+                    {liveStreaming ? 'Generating...' : 'Generate Simulated Stream'}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -288,7 +288,7 @@ export default function AISModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading analysis history...</div>
               ) : analysisHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No AIS analyses yet. Upload CSV or start live stream to begin.
+                  No AIS analyses yet. Generate a simulated reading to begin.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
