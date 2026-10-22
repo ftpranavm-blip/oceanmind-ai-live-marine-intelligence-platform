@@ -4,11 +4,13 @@ import Iter "mo:core/Iter";
 // tested with the Motoko interpreter.
 module {
   // May `caller` write a record under an id that currently holds `existing`?
+  // New ids are free; an existing record may be replaced by its owner or an
+  // admin (the same rule updateAlert uses).
   public func mayWrite(existing : ?{ owner : Principal }, caller : Principal, callerIsAdmin : Bool) : Bool {
-    ignore existing;
-    ignore caller;
-    ignore callerIsAdmin;
-    true;
+    switch (existing) {
+      case (null) { true };
+      case (?record) { record.owner == caller or callerIsAdmin };
+    };
   };
 
   // May `caller` read `record`?
