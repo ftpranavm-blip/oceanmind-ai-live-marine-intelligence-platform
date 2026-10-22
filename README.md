@@ -47,7 +47,7 @@ converted to 0-10 before they enter the Global Marine Risk Index
 | Module | Source of the numbers |
 | --- | --- |
 | Satellite | `Math.random` in the browser. No imagery is analysed and no Earth Engine call is made. |
-| Coral | `Math.random` in the browser. No image model or NOAA Coral Reef Watch call is used. |
+| Coral | Real data option: a dated NOAA Coral Reef Watch extract (2026-10-15) bundled in `frontend/src/data/crw-extract.json`, because browsers cannot call NOAA ERDDAP directly (CORS). The image path is still `Math.random`; no image model is used. |
 | AIS | `Math.random` in the browser. Uploaded CSVs are not parsed yet. |
 | IoT | `Math.random` in the browser. Uploaded CSVs are not parsed; no NOAA buoy call is made. |
 | Live Ocean Map | 5 fixed demo vessels and 5 fixed ocean points returned by `getMapData()`. |
