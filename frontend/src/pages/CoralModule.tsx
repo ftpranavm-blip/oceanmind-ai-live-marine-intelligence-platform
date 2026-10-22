@@ -10,6 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Waves, Thermometer, AlertTriangle, Upload, Satellite } from 'lucide-react';
 import { toast } from 'sonner';
 import { coralRiskScore, isCoralAlert } from '../lib/risk';
+import { CRW_EXTRACT, crwReadingForRegion, type CoralReadingFromCrw } from '../lib/crwReading';
+
+// Where the values in the form came from; shown next to the score and saved as dataType.
+type CoralSource = { kind: 'manual' } | { kind: 'simulated' } | { kind: 'crw'; crw: CoralReadingFromCrw };
+
+const sourceLabel = (source: CoralSource) =>
+  source.kind === 'crw' ? source.crw.label : source.kind === 'simulated' ? 'Simulated' : 'Manual entry';
+
+const sourceDataType = (source: CoralSource) =>
+  source.kind === 'crw' ? source.crw.dataType : source.kind === 'simulated' ? 'Simulated image' : 'Manual entry';
 
 export default function CoralModule() {
   const [bleachingProb, setBleachingProb] = useState('0');
@@ -17,10 +27,7 @@ export default function CoralModule() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState('great_barrier_reef');
-  const [dataType, setDataType] = useState<'image' | 'sst'>('image');
-
-  // NOAA Coral Reef Watch simulation
-  const [fetchingNoaa, setFetchingNoaa] = useState(false);
+  const [source, setSource] = useState<CoralSource>({ kind: 'manual' });
 
   const saveAnalysis = useSaveCoralAnalysis();
   const { data: analyses = [], isLoading } = useGetCoralAnalysisHistory();
@@ -39,7 +46,6 @@ export default function CoralModule() {
     }
 
     setImageFile(file);
-    setDataType('image');
     toast.success('Coral image uploaded. Ready for AI analysis.');
   };
 
@@ -60,32 +66,26 @@ export default function CoralModule() {
 
     setBleachingProb(simulatedBleaching);
     setThermalStress(simulatedStress);
+    setSource({ kind: 'simulated' });
 
     setAnalyzing(false);
     toast.success('Simulated bleaching reading generated.');
   };
 
-  const handleNoaaFetch = async () => {
-    setFetchingNoaa(true);
-    setDataType('sst');
-    toast.info('Generating simulated temperature reading...');
-
-    // Simulate NOAA API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const simulatedTemp = (26 + Math.random() * 6).toFixed(1);
-    const tempValue = parseFloat(simulatedTemp);
-    const stressValue = tempValue > 30 ? ((tempValue - 30) * 2).toFixed(1) : '0';
-
-    setThermalStress(stressValue);
-    
-    // Estimate bleaching based on temperature
-    const bleachingEstimate = tempValue > 30 ? ((tempValue - 28) * 1.5).toFixed(1) : (Math.random() * 3).toFixed(1);
-    setBleachingProb(bleachingEstimate);
-
-    setFetchingNoaa(false);
-    toast.success(`Simulated temperature: ${simulatedTemp}°C`);
+  // Loads the bundled NOAA CRW extract (ERDDAP blocks browser requests via CORS).
+  const handleCrwLoad = () => {
+    const crw = crwReadingForRegion(selectedRegion);
+    if (!crw) {
+      toast.error('No NOAA CRW reading for this region in the bundled extract');
+      return;
+    }
+    setBleachingProb(crw.bleaching.toFixed(1));
+    setThermalStress(crw.thermalStress.toFixed(1));
+    setSource({ kind: 'crw', crw });
+    toast.success(`Loaded ${crw.label}`);
   };
+
+  const selectedCrw = crwReadingForRegion(selectedRegion);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +103,7 @@ export default function CoralModule() {
         riskScore,
         alertStatus,
         region: regionName,
-        dataType: dataType === 'image' ? 'Image Analysis' : 'SST Data',
+        dataType: sourceDataType(source),
       });
 
       if (alertStatus) {
@@ -115,6 +115,7 @@ export default function CoralModule() {
       setBleachingProb('0');
       setThermalStress('0');
       setImageFile(null);
+      setSource({ kind: 'manual' });
     } catch (error) {
       toast.error('Failed to save coral analysis');
       console.error('Error saving coral analysis:', error);
@@ -131,7 +132,7 @@ export default function CoralModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Coral Intelligence Module</h1>
-            <p className="text-muted-foreground">Bleaching and thermal stress risk scoring (simulated readings)</p>
+            <p className="text-muted-foreground">Bleaching and thermal stress risk scoring from NOAA Coral Reef Watch data or simulated readings</p>
           </div>
         </div>
 
@@ -150,8 +151,8 @@ export default function CoralModule() {
           {/* Analysis Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Coral Analysis (Simulated)</CardTitle>
-              <CardDescription>Upload an image or generate a simulated reading; no image model or NOAA call is used</CardDescription>
+              <CardTitle>Coral Analysis</CardTitle>
+              <CardDescription>Load a dated NOAA Coral Reef Watch reading, or generate a simulated image reading (no image model is used)</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="upload" className="space-y-4">
@@ -162,7 +163,7 @@ export default function CoralModule() {
                   </TabsTrigger>
                   <TabsTrigger value="noaa">
                     <Satellite className="w-4 h-4 mr-2" />
-                    Simulated NOAA
+                    NOAA CRW
                   </TabsTrigger>
                 </TabsList>
 
@@ -225,25 +226,36 @@ export default function CoralModule() {
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                    <div className="font-medium">Simulated NOAA Coral Reef Watch reading</div>
+                    <div className="font-medium">NOAA Coral Reef Watch, data from {CRW_EXTRACT.date}</div>
                     <div className="text-xs text-muted-foreground">
-                      Sea surface temperature and thermal stress are generated randomly, not fetched
+                      Bundled extract of the daily 5 km products (browsers cannot call NOAA ERDDAP directly).
+                      Refresh with scripts/update-crw-extract.mts.
                     </div>
+                    {selectedCrw ? (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 text-xs">
+                        <span>Degree Heating Weeks: {selectedCrw.reading.dhw.toFixed(2)} °C-weeks</span>
+                        <span>Bleaching Alert Area: level {selectedCrw.reading.baa} of 4</span>
+                        <span>HotSpot: {selectedCrw.reading.hotspot.toFixed(2)} °C</span>
+                        <span>SST anomaly: {selectedCrw.reading.sstAnomaly.toFixed(2)} °C</span>
+                        <span className="col-span-2 text-muted-foreground">
+                          Cell {selectedCrw.reading.cell.lat}, {selectedCrw.reading.cell.lon}
+                          {selectedCrw.reading.distanceKm > 0 ? ` (nearest water cell, ${selectedCrw.reading.distanceKm.toFixed(1)} km away)` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground pt-2">No reading for this region in the extract.</div>
+                    )}
                   </div>
 
-                  <Button
-                    onClick={handleNoaaFetch}
-                    disabled={fetchingNoaa}
-                    className="w-full"
-                  >
-                    {fetchingNoaa ? 'Generating...' : 'Generate Simulated Temperature'}
+                  <Button onClick={handleCrwLoad} disabled={!selectedCrw} className="w-full">
+                    Load NOAA CRW Reading
                   </Button>
                 </TabsContent>
               </Tabs>
 
               <form onSubmit={handleSubmit} className="space-y-4 mt-6 pt-6 border-t">
                 <div className="space-y-2">
-                  <Label htmlFor="bleachingProb">Bleaching Probability (0-10)</Label>
+                  <Label htmlFor="bleachingProb">Bleaching Score (0-10)</Label>
                   <Input
                     id="bleachingProb"
                     type="number"
@@ -251,10 +263,13 @@ export default function CoralModule() {
                     max="10"
                     step="0.1"
                     value={bleachingProb}
-                    onChange={(e) => setBleachingProb(e.target.value)}
+                    onChange={(e) => {
+                      setBleachingProb(e.target.value);
+                      setSource({ kind: 'manual' });
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    AI-based bleaching detection score
+                    From CRW: max(Bleaching Alert Area level x 2.5, 7.5 at DHW &gt;= 4, 10 at DHW &gt;= 8)
                   </p>
                 </div>
 
@@ -267,14 +282,21 @@ export default function CoralModule() {
                     max="10"
                     step="0.1"
                     value={thermalStress}
-                    onChange={(e) => setThermalStress(e.target.value)}
+                    onChange={(e) => {
+                      setThermalStress(e.target.value);
+                      setSource({ kind: 'manual' });
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Based on NOAA temperature data
+                    From CRW: min(Degree Heating Weeks / 8, 1) x 10
                   </p>
                 </div>
 
                 <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-2 text-sm">
+                    <span className="text-muted-foreground">Source:</span>
+                    <Badge variant="outline">{sourceLabel(source)}</Badge>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Calculated Risk Score:</span>
                     <Badge variant={isCoralAlert(calculateRiskScore()) ? 'destructive' : 'secondary'}>
