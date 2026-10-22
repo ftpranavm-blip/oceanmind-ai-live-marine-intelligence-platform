@@ -1,5 +1,10 @@
 # OceanMind AI   Live Marine Intelligence Platform
 
+> **Note:** The feature sections below are the original product brief and
+> describe intended behaviour, including live data feeds that are not built.
+> "Backend API" and "External Data Sources" describe what exists today. See
+> README.md for the current state.
+
 ## Overview
 OceanMind AI is a fully live, modular marine intelligence and climate risk monitoring platform that combines real-time data sources, live API integrations, and automated analysis to provide comprehensive ocean monitoring and risk assessment capabilities with automatic alert generation.
 
@@ -424,89 +429,62 @@ OceanMind AI is a fully live, modular marine intelligence and climate risk monit
 - Generated reports and fusion intelligence outputs
 - Fusion correlation matrices and analysis reports
 
-## Backend API Requirements
+## Backend API (as implemented in `backend/main.mo`)
 
-### Enhanced Analysis History Endpoints
-- **Enhanced `saveSatelliteAnalysis()` endpoint:**
-  - Persists satellite analysis results with complete metadata including region, sources, timestamps, risk scores, and alert status
-  - **Guaranteed backend Map storage in `satelliteAnalyses` with immediate persistence**
-  - **Returns success confirmation for immediate React Query cache invalidation trigger**
-- `getSatelliteAnalysisHistory()` endpoint for retrieving stored satellite analysis records with real-time data binding support
-- **Enhanced `saveCoralAnalysis()` endpoint:**
-  - Persists coral analysis results with region name, data type, timestamp, and alert status
-  - **Guaranteed backend Map storage in `coralAnalyses` with immediate persistence**
-  - **Returns success confirmation for immediate React Query cache invalidation trigger**
-- `getCoralAnalysisHistory()` endpoint for retrieving stored coral analysis records with real-time data binding support
-- **Enhanced `saveAISAnalysis()` endpoint:**
-  - Persists AIS analysis results with module identifier, region/area, vessel IDs, timestamp, and alert status
-  - **Guaranteed backend Map storage in `aisAnalyses` with immediate persistence**
-  - **Returns success confirmation for immediate React Query cache invalidation trigger**
-- `getAISAnalysisHistory()` endpoint for retrieving stored AIS analysis records with real-time data binding support
-- **Enhanced `saveIoTAnalysis()` endpoint:**
-  - Persists IoT analysis results with full metadata including module identifier, region/sensor location, data type, timestamp, and alert status
-  - **Guaranteed backend Map storage in `iotAnalyses` with immediate persistence**
-  - **Returns success confirmation for immediate React Query cache invalidation trigger**
-- `getIoTAnalysisHistory()` endpoint for retrieving stored IoT analysis records with real-time data binding support
-- **Enhanced `saveFusionAnalysis()` endpoint with complete snapshot functionality:**
-  - Persists complete fusion analysis snapshots with all required fields
-  - Stores unique snapshot ID, precise timestamp, fusion risk score, global marine risk index
-  - Includes complete correlation matrix data and number of active alerts generated
-  - Records owner principal identification for traceability
-  - **Automatically generates and stores AI recommendations including situation summary, risk assessment, actionable steps, responsible stakeholders, and confidence levels**
-  - **Guaranteed backend Map storage in `fusionAnalysisHistory` with immediate persistence**
-  - **Returns success confirmation for immediate React Query cache invalidation trigger**
-- `getFusionAnalysisHistory()` endpoint for retrieving stored fusion analysis records with real-time data binding support including associated AI recommendations
-- **AI Recommendations endpoints:**
-  - `generateAIRecommendations()` endpoint for creating AI-generated recommendations based on current fusion analysis state
-  - `getAIRecommendations()` endpoint for retrieving recommendations associated with specific fusion analysis snapshots
-- **All save endpoints enhanced with:**
-  - Backend event timestamps and alert metadata (region, module type, risk scores, alert status) for complete traceability
-  - **Immediate persistence confirmation responses for React Query cache invalidation triggers**
-  - **Real-time data binding between backend persistence and frontend React Query layer ensuring instant display of new analyses after saving**
+This section lists only endpoints that exist. "User" means a caller with the
+`#user` role or higher; calls from other callers trap.
 
-### Enhanced Fusion Engine Endpoints
-- `getFusionData()` endpoint for retrieving real-time fusion analysis results and correlation matrices with 8-second refresh capability
-- `getFusionRiskScore()` endpoint for current fusion risk assessment with live correlation data
-- `getFusionCorrelations()` endpoint for retrieving multi-source correlation data with real-time updates
-- `updateFusionRules()` endpoint for modifying correlation thresholds and rules
-- `triggerFusionAlert()` endpoint for creating and persisting fusion alerts when cross-module conditions are met
-- Enhanced real-time fusion data aggregation from all module endpoints every 8 seconds with optimized backend logic
-- Automatic correlation computation and fusion alert generation based on multi-source data with immediate persistence
-- Backend fusion logic that continuously monitors and aggregates live data streams from Satellite, Coral, AIS, and IoT modules
-- Automated fusion alert triggering system that evaluates cross-module correlation conditions and creates persistent alerts with "Fusion" type tagging
-- **AI recommendation generation system integrated into fusion analysis workflow**
+### Analyses
+| Endpoint | Kind | Notes |
+| --- | --- | --- |
+| `saveSatelliteAnalysis(id, region, sourceSentinel1, sourceSentinel2, sourceLandsat, sourceModis, vesselCount, clusterFlag, pollutionFlag, nearCoral, marina_area_flag, riskScore) -> Bool` | update | User. Traps if `id` holds another user's record (admins may overwrite). |
+| `getSatelliteAnalysisHistory() -> [SatelliteAnalysis]` | query | User. Caller's own records; admins see all. |
+| `saveCoralAnalysis(region, imageId, bleachingProbability, thermalStress, riskScore, dataType) -> Bool` | update | User. Stored under a server-generated key (`<region>#<n>`). `alertStatus` = `riskScore >= 6`. |
+| `getCoralAnalysisHistory() -> [CoralAnalysis]` | query | User. Caller's own records; admins see all. |
+| `saveAISAnalysis(id, dataModule, region, vesselIDs, riskScore) -> Bool` | update | User. Owner check as above. `alertStatus` = `riskScore >= 7`. |
+| `getAISAnalysisHistory() -> [AISAnalysis]` | query | User. Caller's own records; admins see all. |
+| `saveIoTAnalysis(id, dataModule, region, dataType, riskScore) -> Bool` | update | User. Owner check as above. `alertStatus` = `riskScore >= 7`. |
+| `getIoTAnalysisHistory() -> [IoTAnalysis]` | query | User. Caller's own records; admins see all. |
+| `saveFusionAnalysis(id, correlations, fusionRiskScore, globalRiskScore, alertsGenerated, aiRecommendations) -> Bool` | update | User. Owner check as above. AI recommendations are generated in the frontend and passed in. |
+| `getFusionAnalysisHistory() -> [FusionAnalysisRecord]` | query | User. Caller's own records; admins see all. |
+| `getAIRecommendations(id) -> ?AIRecommendations` | query | User. Returns `null` for another user's record unless the caller is an admin. |
 
-### Enhanced Alerts Management Endpoints
-- `getAllAlerts()` endpoint for retrieving all alerts with complete metadata including type, source module, timestamp, severity, and owner information with 8-second refresh optimization
-- `getAlertsByModule()` endpoint for filtering alerts by specific source modules including fusion alerts with "Fusion" type tag
-- `getAlertsBySeverity()` endpoint for filtering alerts by severity levels
-- `saveAlert()` endpoint for persisting new alerts with guaranteed backend storage and complete metadata
-- `updateAlert()` endpoint for modifying existing alert status or details
-- `saveFusionAlert()` endpoint for persisting fusion-generated correlation alerts with proper "Fusion" type tagging
-- Real-time alert data with automatic refresh capabilities every 8 seconds using optimized polling
-- Structured alert data format ensuring consistent frontend display and filtering
-- Enhanced integration with fusion engine to ensure fusion alerts appear immediately in global alert feed
+Risk scores for satellite, coral, AIS and IoT are on a 0-10 scale.
 
-### Enhanced Live Ocean Map Data Endpoint
-- **Enhanced `getMapData()` endpoint with comprehensive demo and live data support:**
-  - **Returns 4-5 static demo vessel data points by default with realistic vessel information including MMSI numbers, vessel types, coordinates, speeds, headings, and risk scores positioned at strategic global locations**
-  - **Provides ocean parameter data for temperature, pollution, and current overlays with coordinate-based mapping for interactive tooltips**
-  - **Temperature data with coordinate mapping and values in °C for gradient overlay visualization**
-  - **Pollution level data with coordinate mapping and index values for color intensity representation**
-  - **Current direction and speed data with coordinate mapping and vector information for arrow overlay display**
-  - Backend mechanism that fetches latest vessel data at regular intervals (30-60 seconds) with no caching to ensure always-fresh AIS vessel information
-- Returns vessel positions with coordinates, risk scores, and metadata including MMSI, type, speed, and heading details
-- Ocean parameter data for temperature, pollution, and current overlays
-- Real-time updates for map visualization with enhanced backend-driven motion data
-- Structured data format for Leaflet.js integration with continuous connection support
-- Backend-driven data with realistic transitions based on prior data points when live data is unavailable
-- Synchronized backend and frontend systems for seamless live vessel position refresh
+### Alerts
+| Endpoint | Kind | Notes |
+| --- | --- | --- |
+| `saveAlert(id, type_, severity, source) -> Bool` | update | User. Traps if `id` holds another user's alert (admins may overwrite). Fusion alerts use this with `type_ = "Fusion"`. |
+| `updateAlert(id, type_, severity, source) -> Bool` | update | User. Owner or admin only; traps if the alert does not exist. |
+| `getAllAlerts() -> [Alert]` | query | User. Returns every user's alerts. |
+| `getAlertsByType(alertType) -> [Alert]` | query | User. Returns every user's alerts of that type. |
+| `getAlertsBySeverity(severity) -> [Alert]` | query | User. Returns every user's alerts of that severity. |
 
-## External API Integrations
-- Google Earth Engine API for live satellite data access including Sentinel-1 SAR data
-- NOAA Coral Reef Watch API for real-time coral stress monitoring
-- Mock NOAA buoy data simulation for IoT parameter feeds
-- Real-time marine data APIs for Live Ocean Map vessel positions and ocean parameters
+### Map
+| Endpoint | Kind | Notes |
+| --- | --- | --- |
+| `getMapData() -> MapData` | query | User. Returns 5 hardcoded demo vessels and 5 fixed ocean-parameter points (temperature, current, pollution). Nothing is fetched. |
+
+### Users and access control
+| Endpoint | Kind | Notes |
+| --- | --- | --- |
+| `getCallerUserProfile() -> ?UserProfile` | query | User. |
+| `getUserProfile(user) -> ?UserProfile` | query | User; own profile only unless admin. |
+| `saveCallerUserProfile(profile)` | update | User. |
+| `getCallerUserRole() -> UserRole` | query | From the authorization mixin. |
+| `isCallerAdmin() -> Bool` | query | From the authorization mixin. |
+| `assignCallerUserRole(user, role)` | update | From the authorization mixin. |
+| `_initializeAccessControlWithSecret(userSecret)` | update | From the authorization mixin. |
+
+### Blob storage (from the `blob-storage` mixin)
+`_caffeineStorageBlobIsLive`, `_caffeineStorageBlobsToDelete`,
+`_caffeineStorageConfirmBlobDeletion`, `_caffeineStorageCreateCertificate`,
+`_caffeineStorageRefillCashier`, `_caffeineStorageUpdateGatewayPrincipals`.
+
+## External Data Sources
+None are connected. The satellite ("Earth Engine"), coral ("NOAA Coral Reef
+Watch"), AIS and IoT ("NOAA buoy") readings are generated in the browser with
+`Math.random`, and the UI labels them "Simulated".
 
 ## Technical Architecture
 - Continuous real-time vessel tracking with backend mechanism fetching latest vessel data every 30-60 seconds with no caching
