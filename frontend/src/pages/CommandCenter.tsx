@@ -35,6 +35,10 @@ export default function CommandCenter() {
     vessels,
   });
   const globalRiskBand = moduleSeverityBand(globalRiskIndex);
+  // History queries return only the caller's records, so a new user has none.
+  // The demo vessels alone would otherwise show a misleading index.
+  const analysisCount = satelliteData.length + coralData.length + aisData.length + iotData.length;
+  const hasAnalyses = analysisCount > 0;
 
   const modules = [
     {
@@ -137,20 +141,29 @@ export default function CommandCenter() {
             <CardDescription>Live aggregated risk from all intelligence modules including Fusion Engine</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-5xl font-bold text-chart-1">
-                  {globalRiskIndex.toFixed(2)}
-                </span>
-                <Badge 
-                  variant={globalRiskBand === 'Critical' ? 'destructive' : 'secondary'} 
-                  className="text-lg px-4 py-2"
-                >
-                  {globalRiskBand}
-                </Badge>
+            {hasAnalyses ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-5xl font-bold text-chart-1">
+                    {globalRiskIndex.toFixed(2)}
+                  </span>
+                  <Badge 
+                    variant={globalRiskBand === 'Critical' ? 'destructive' : 'secondary'} 
+                    className="text-lg px-4 py-2"
+                  >
+                    {globalRiskBand}
+                  </Badge>
+                </div>
+                <Progress value={globalRiskIndex * 10} className="h-4" />
               </div>
-              <Progress value={globalRiskIndex * 10} className="h-4" />
-            </div>
+            ) : (
+              <div className="py-6 text-center space-y-2">
+                <p className="text-lg font-medium">No analyses yet - run one in any module</p>
+                <p className="text-sm text-muted-foreground">
+                  The index is calculated from your saved satellite, coral, AIS and IoT analyses. Pick a module below to start.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -210,9 +223,9 @@ export default function CommandCenter() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-chart-2">
-                {satelliteData.length + coralData.length + aisData.length + iotData.length}
+                {analysisCount}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Live feeds active</p>
+              <p className="text-xs text-muted-foreground mt-1">Saved analyses</p>
             </CardContent>
           </Card>
         </div>
