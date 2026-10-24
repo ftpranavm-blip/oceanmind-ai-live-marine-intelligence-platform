@@ -96,7 +96,8 @@ describe('NDBC columns and URLs', () => {
 
 describe('sample CSV (frontend/src/data/iot-sample.csv)', () => {
   it('is marked as not measured', () => {
-    expect(sampleCsv.split('\n')[0]).toBe('# SAMPLE VALUES - NOT MEASURED.');
+    // Split on \r?\n: on Windows with core.autocrlf the working copy has CRLF.
+    expect(sampleCsv.split(/\r?\n/)[0]).toBe('# SAMPLE VALUES - NOT MEASURED.');
   });
 
   it('fills only variables the stations do not report', () => {

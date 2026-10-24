@@ -279,7 +279,7 @@ describe('anonymised MarineCadastre sample (2026-06-30)', () => {
   const t = (n: number) => tracks.find(x => x.id === `VESSEL-${String(n).padStart(3, '0')}`)!;
 
   it('has no MMSI, vessel name, IMO or call sign', () => {
-    const header = sample.split('\n')[0].split(',');
+    const header = sample.split(/\r?\n/)[0].split(',');
     expect(header).not.toContain('vessel_name');
     expect(header).not.toContain('imo');
     expect(header).not.toContain('call_sign');
