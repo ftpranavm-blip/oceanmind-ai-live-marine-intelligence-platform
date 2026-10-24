@@ -105,7 +105,14 @@ export const isMpaViolation = (d: FusionSatelliteRecord) => d.marina_area_flag &
 
 export type CorrelationStatus = 'normal' | 'warning' | 'critical';
 
+// Display label for the AIS + satellite correlation. Its stored identifiers
+// (correlationType 'illegal_fishing', alert ids fusion_illegal_fishing_*) are
+// unchanged; the rules flag vessel behaviour to review, not wrongdoing.
+export const SUSPICIOUS_VESSEL_ACTIVITY = 'Suspicious vessel activity (AIS + satellite)';
+
 export interface CorrelationMetric {
+  /** Stable key, used when saving snapshots; the name is display text only. */
+  key: CorrelationType;
   name: string;
   value: number;
   threshold: number;
@@ -146,15 +153,15 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   const metrics: CorrelationMetric[] = [];
   const alerts: FusionAlert[] = [];
 
-  // Correlation 1: Illegal Fishing Detection (AIS + Satellite)
+  // Correlation 1: Suspicious vessel activity (AIS + Satellite)
   const highAIS = ais.filter(isHighRiskAIS);
   const satelliteClusters = satellite.filter(d => d.clusterFlag);
   const illegalFishing = (highAIS.length + satelliteClusters.length) / 2;
-  metrics.push({ name: 'Illegal Fishing Risk', value: illegalFishing, threshold: 3, status: correlationStatus(illegalFishing, 3, 5) });
+  metrics.push({ key: 'illegal_fishing', name: SUSPICIOUS_VESSEL_ACTIVITY, value: illegalFishing, threshold: 3, status: correlationStatus(illegalFishing, 3, 5) });
   if (highAIS.length > 0 && satelliteClusters.length > 0) {
     alerts.push({
       id: `fusion_illegal_fishing_${now}`,
-      type: 'Illegal Fishing',
+      type: SUSPICIOUS_VESSEL_ACTIVITY,
       severity: 9,
       description: `High AIS risk (${highAIS.length} vessels) combined with satellite vessel clustering (${satelliteClusters.length} clusters) detected`,
       sources: ['AIS Intelligence', 'Satellite Intelligence'],
@@ -166,7 +173,7 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   // Correlation 2: Reef Emergency (Coral + Temperature)
   const highCoralRisk = coral.filter(isCoralEmergency);
   const reefEmergency = highCoralRisk.length;
-  metrics.push({ name: 'Reef Emergency Risk', value: reefEmergency, threshold: 2, status: correlationStatus(reefEmergency, 2, 4) });
+  metrics.push({ key: 'reef_emergency', name: 'Reef Emergency Risk', value: reefEmergency, threshold: 2, status: correlationStatus(reefEmergency, 2, 4) });
   if (highCoralRisk.length > 0) {
     alerts.push({
       id: `fusion_reef_emergency_${now}`,
@@ -183,7 +190,7 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   const pollutionDetected = satellite.filter(d => d.pollutionFlag);
   const highIoTRisk = iot.filter(isHighRiskIoT);
   const pollution = (pollutionDetected.length + highIoTRisk.length) / 2;
-  metrics.push({ name: 'Pollution Risk', value: pollution, threshold: 2, status: correlationStatus(pollution, 2, 4) });
+  metrics.push({ key: 'pollution_correlation', name: 'Pollution Risk', value: pollution, threshold: 2, status: correlationStatus(pollution, 2, 4) });
   if (pollutionDetected.length > 0 && highIoTRisk.length > 0) {
     alerts.push({
       id: `fusion_pollution_${now}`,
@@ -199,7 +206,7 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   // Correlation 4: MPA Violation (Satellite + Vessel Density)
   const mpaViolations = satellite.filter(isMpaViolation);
   const mpa = mpaViolations.length;
-  metrics.push({ name: 'MPA Violation Risk', value: mpa, threshold: 1, status: correlationStatus(mpa, 1, 3) });
+  metrics.push({ key: 'mpa_violation', name: 'MPA Violation Risk', value: mpa, threshold: 1, status: correlationStatus(mpa, 1, 3) });
   if (mpaViolations.length > 0) {
     alerts.push({
       id: `fusion_mpa_violation_${now}`,
@@ -216,7 +223,7 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   const highVesselDensity = vessels.filter(isHighRiskVessel).length;
   const coralBleachingAreas = coral.filter(isCoralBleaching).length;
   const vesselCoral = (highVesselDensity + coralBleachingAreas) / 2;
-  metrics.push({ name: 'Vessel-Coral Impact', value: vesselCoral, threshold: 3, status: correlationStatus(vesselCoral, 3, 5) });
+  metrics.push({ key: 'vessel_coral_impact', name: 'Vessel-Coral Impact', value: vesselCoral, threshold: 3, status: correlationStatus(vesselCoral, 3, 5) });
   if (highVesselDensity > 2 && coralBleachingAreas > 0) {
     alerts.push({
       id: `fusion_vessel_coral_${now}`,
@@ -233,7 +240,7 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   const highThermalStress = coral.filter(isHighThermalStress).length;
   const pollutionIndicators = iot.filter(isTurbidityAnomaly).length;
   const sstPollution = (highThermalStress + pollutionIndicators) / 2;
-  metrics.push({ name: 'SST-Pollution Correlation', value: sstPollution, threshold: 2, status: correlationStatus(sstPollution, 2, 4) });
+  metrics.push({ key: 'climate_pollution', name: 'SST-Pollution Correlation', value: sstPollution, threshold: 2, status: correlationStatus(sstPollution, 2, 4) });
   if (highThermalStress > 0 && pollutionIndicators > 0) {
     alerts.push({
       id: `fusion_sst_pollution_${now}`,
@@ -247,6 +254,23 @@ export function computeCorrelations(inputs: FusionInputs, now: number): Correlat
   }
 
   return { metrics, alerts };
+}
+
+// Numeric fields of a saved fusion snapshot (FusionCorrelations in the
+// backend), looked up by metric key so renaming a label cannot zero a field.
+export function correlationsFromMetrics(metrics: ReadonlyArray<CorrelationMetric>) {
+  const value = (key: CorrelationType) => metrics.find(m => m.key === key)?.value ?? 0;
+  return {
+    satelliteAIS: value('illegal_fishing'),
+    satelliteCoral: value('reef_emergency'),
+    iotCoral: value('climate_pollution'),
+    coralAIS: 0,
+    mapAIS: value('mpa_violation'),
+    iotAIS: value('pollution_correlation'),
+    mapCoral: value('vessel_coral_impact'),
+    mapIot: 0,
+    iotSatellite: 0,
+  };
 }
 
 export type RecommendationScenario =

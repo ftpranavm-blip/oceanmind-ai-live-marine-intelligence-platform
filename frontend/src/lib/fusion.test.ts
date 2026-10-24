@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  SUSPICIOUS_VESSEL_ACTIVITY,
   computeCorrelations,
+  correlationsFromMetrics,
   fusionIndexBand,
   fusionIndexPercent,
   fusionRiskScore,
@@ -74,7 +76,7 @@ describe('regression guards (behavior that is correct today)', () => {
   it('produces six correlation metrics and no alerts for empty data', () => {
     const { metrics, alerts } = computeCorrelations(empty, 1);
     expect(metrics.map(m => m.name)).toEqual([
-      'Illegal Fishing Risk',
+      'Suspicious vessel activity (AIS + satellite)',
       'Reef Emergency Risk',
       'Pollution Risk',
       'MPA Violation Risk',
@@ -193,5 +195,59 @@ describe('shared Global Marine Risk Index', () => {
     const source = readFileSync(new URL(`../pages/${page}`, import.meta.url), 'utf8');
     expect(source).toMatch(/globalMarineRiskIndex\(/);
     expect(source).not.toMatch(/simpleGlobalRiskIndex|weightedGlobalRiskIndex\(/);
+  });
+});
+
+// The AIS + satellite correlation used to be labelled "Illegal Fishing". Only
+// display text changed; identifiers stored with alerts and snapshots did not.
+describe('suspicious vessel activity wording (AIS + satellite)', () => {
+  const inputs: FusionInputs = {
+    ...empty,
+    satellite: [sat({ riskScore: 9, clusterFlag: true })],
+    ais: [{ riskScore: 9 }],
+  };
+  const { metrics, alerts } = computeCorrelations(inputs, 42);
+
+  it('labels the metric and the alert neutrally', () => {
+    expect(SUSPICIOUS_VESSEL_ACTIVITY).toBe('Suspicious vessel activity (AIS + satellite)');
+    expect(metrics.find(m => m.key === 'illegal_fishing')!.name).toBe(SUSPICIOUS_VESSEL_ACTIVITY);
+    expect(alerts.find(a => a.correlationType === 'illegal_fishing')!.type).toBe(SUSPICIOUS_VESSEL_ACTIVITY);
+  });
+
+  it('keeps the stored identifiers unchanged', () => {
+    const alert = alerts.find(a => a.correlationType === 'illegal_fishing')!;
+    expect(alert.id).toBe('fusion_illegal_fishing_42');
+    expect(selectRecommendationScenario(alerts, 0)).toBe('illegal_fishing');
+  });
+
+  it('never says "illegal fishing" in a metric name, alert type or description', () => {
+    const text = [...metrics.map(m => m.name), ...alerts.flatMap(a => [a.type, a.description])].join(' | ');
+    expect(text).not.toMatch(/illegal fishing/i);
+  });
+
+  it('maps metrics to the stored snapshot fields by key, not by label', () => {
+    const all = computeCorrelations(
+      {
+        satellite: [sat({ riskScore: 9, clusterFlag: true, pollutionFlag: true, marina_area_flag: true, vesselCount: 9n })],
+        coral: [coral(8, 8, 8)],
+        ais: [{ riskScore: 9 }],
+        iot: [{ riskScore: 8, dataType: 'Turbidity' }],
+        vessels: [{ riskScore: 0.8 }],
+      },
+      1,
+    ).metrics;
+    const value = (key: string) => all.find(m => m.key === key)!.value;
+    expect(correlationsFromMetrics(all)).toEqual({
+      satelliteAIS: value('illegal_fishing'),
+      satelliteCoral: value('reef_emergency'),
+      iotCoral: value('climate_pollution'),
+      coralAIS: 0,
+      mapAIS: value('mpa_violation'),
+      iotAIS: value('pollution_correlation'),
+      mapCoral: value('vessel_coral_impact'),
+      mapIot: 0,
+      iotSatellite: 0,
+    });
+    expect(correlationsFromMetrics(all).satelliteAIS).toBeGreaterThan(0);
   });
 });

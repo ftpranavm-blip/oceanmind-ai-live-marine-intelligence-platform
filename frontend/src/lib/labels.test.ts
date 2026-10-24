@@ -55,3 +55,19 @@ describe('AI recommendation contacts', () => {
     expect(page('FusionModule.tsx')).toMatch(/Placeholder contact/);
   });
 });
+
+describe('Fusion wording', () => {
+  const lib = readFileSync(new URL('./fusion.ts', import.meta.url), 'utf8');
+
+  it.each([
+    ['FusionModule.tsx', () => page('FusionModule.tsx')],
+    ['lib/fusion.ts', () => lib],
+  ])('%s shows no "illegal fishing" text', (_name, read) => {
+    expect(visibleText(read()).filter(t => /illegal fishing/i.test(t))).toEqual([]);
+  });
+
+  it('labels the AIS + satellite recommendation as suspicious vessel activity to review', () => {
+    expect(page('FusionModule.tsx')).toMatch(/riskType = SUSPICIOUS_VESSEL_ACTIVITY/);
+    expect(visibleText(page('FusionModule.tsx')).filter(t => /deploy patrol|enforcement operations/i.test(t))).toEqual([]);
+  });
+});

@@ -15,7 +15,9 @@ import {
   fusionRiskScore as computeFusionRiskScore,
   fusionIndexBand,
   fusionIndexPercent,
+  SUSPICIOUS_VESSEL_ACTIVITY,
   computeCorrelations,
+  correlationsFromMetrics,
   selectRecommendationScenario,
   shouldGenerateRecommendations,
   confidenceIndicator,
@@ -83,16 +85,16 @@ export default function FusionModule() {
     const scenario = selectRecommendationScenario(fusionAlerts, unifiedRiskIndex);
 
     if (scenario === 'illegal_fishing') {
-      riskType = 'Illegal Fishing';
+      riskType = SUSPICIOUS_VESSEL_ACTIVITY;
       severityLevel = 'Critical';
       confidenceScore = 0.92;
-      situationSummary = `High-confidence illegal fishing activity detected through multi-source correlation. Satellite imagery shows ${satelliteData.filter(d => d.clusterFlag).length} vessel clusters combined with ${aisData.filter(isHighRiskAIS).length} high-risk AIS signatures. `;
-      
+      situationSummary = `Vessel behaviour flagged in AIS records coincides with satellite vessel clustering: ${satelliteData.filter(d => d.clusterFlag).length} vessel clusters and ${aisData.filter(isHighRiskAIS).length} high-risk AIS records. This is behaviour to review, not evidence of wrongdoing. `;
+
       actionableSteps = [
-        { action: 'Deploy patrol vessels', description: 'Dispatch coast guard or naval vessels to identified high-risk zones for immediate investigation', priority: 'High' },
-        { action: 'Verify vessel identities', description: 'Cross-reference AIS data with vessel registration databases to identify suspicious vessels', priority: 'High' },
-        { action: 'Coordinate surveillance', description: 'Increase satellite monitoring frequency over detected cluster areas', priority: 'Medium' },
-        { action: 'Issue warnings', description: 'Broadcast maritime warnings to vessels in the area regarding enforcement operations', priority: 'Medium' },
+        { action: 'Review flagged vessels', description: 'Check the AIS tracks behind the high-risk records (loitering, gaps, speed anomalies) for ordinary explanations such as port calls or receiver coverage', priority: 'High' },
+        { action: 'Verify vessel identities', description: 'Cross-reference AIS data with vessel registration databases for the flagged vessels', priority: 'High' },
+        { action: 'Compare with satellite imagery', description: 'Check whether the satellite vessel clusters and the AIS positions match in time and place', priority: 'Medium' },
+        { action: 'Refer if still unexplained', description: 'Share the reviewed findings with the responsible authority only if the behaviour remains unexplained', priority: 'Medium' },
       ];
 
       responsibleStakeholders = [
@@ -299,15 +301,7 @@ export default function FusionModule() {
       
       await saveFusionAnalysis.mutateAsync({
         correlations: {
-          satelliteAIS: correlationMetrics.find(m => m.name === 'Illegal Fishing Risk')?.value || 0,
-          satelliteCoral: correlationMetrics.find(m => m.name === 'Reef Emergency Risk')?.value || 0,
-          iotCoral: correlationMetrics.find(m => m.name === 'SST-Pollution Correlation')?.value || 0,
-          coralAIS: 0,
-          mapAIS: correlationMetrics.find(m => m.name === 'MPA Violation Risk')?.value || 0,
-          iotAIS: correlationMetrics.find(m => m.name === 'Pollution Risk')?.value || 0,
-          mapCoral: correlationMetrics.find(m => m.name === 'Vessel-Coral Impact')?.value || 0,
-          mapIot: 0,
-          iotSatellite: 0,
+          ...correlationsFromMetrics(correlationMetrics),
           parameters: `Satellite: ${satelliteData.length}, Coral: ${coralData.length}, AIS: ${aisData.length}, IoT: ${iotData.length}, Vessels: ${vessels.length}`,
         },
         fusionRiskScore,
