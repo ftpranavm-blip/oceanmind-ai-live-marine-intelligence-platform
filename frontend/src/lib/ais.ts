@@ -20,6 +20,13 @@ export const AIS_THRESHOLDS = {
   maxImpliedSpeedKn: 50,
   /** ...when the positions are more than this far apart (km), so GPS jitter is ignored. */
   minJumpKm: 1,
+  /**
+   * Stationary (likely tied up), not loitering: 90% of a vessel's positions lie
+   * within this distance (m) of its median position...
+   */
+  stationaryRadiusM: 250,
+  /** ...and it was seen for at least this long (hours), i.e. most of a one-day file. */
+  stationaryMinHours: 12,
   /** Risk: points per distinct behaviour type a vessel shows (capped at 10). */
   scorePerBehaviour: 3.5,
 } as const;
@@ -181,6 +188,27 @@ export function findGaps(track: AisTrack): AisGap[] {
   return gaps;
 }
 
+// Stationary vessel: seen for at least stationaryMinHours, with 90% of its
+// positions within stationaryRadiusM of its median position. The 90th
+// percentile (not the maximum) is used because tied-up boats show occasional
+// GPS spikes of 100+ m.
+//
+// Taken from one day in one area (MarineCadastre, 2026-06-30, Florida Keys):
+// the 91 vessels the loitering rule flagged split into 62 with a 90th-percentile
+// radius of at most 93 m and 29 with at least 712 m, with none between; 250 m
+// sits inside that empty band. The radius leaves room either side; 6 to 12
+// hours gave the same result there. These values may not generalise to other
+// areas, days or vessel mixes.
+export function isStationary(track: AisTrack): boolean {
+  const pts = track.points;
+  if (pts.length < 2) return false;
+  if ((pts[pts.length - 1].time - pts[0].time) / 3_600_000 < AIS_THRESHOLDS.stationaryMinHours) return false;
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const centre = { lat: median(pts.map(p => p.lat)), lon: median(pts.map(p => p.lon)) };
+  const metres = pts.map(p => distanceKm(centre, p) * 1000).sort((a, b) => a - b);
+  return metres[Math.min(metres.length - 1, Math.floor(0.9 * metres.length))] <= AIS_THRESHOLDS.stationaryRadiusM;
+}
+
 export interface AisLoitering { id: string; start: number; end: number; minutes: number; lat: number; lon: number }
 
 const isSlow = (p: AisPoint) =>
@@ -188,8 +216,10 @@ const isSlow = (p: AisPoint) =>
 
 // Stretches of consecutive slow points (not moored, not at anchor) that stay
 // within loiterMaxRadiusKm of the first point and last at least loiterMinMinutes.
-// A missing speed, a gap or leaving the radius ends a stretch.
+// A missing speed, a gap or leaving the radius ends a stretch. Stationary
+// vessels (see isStationary) are not loitering.
 export function findLoitering(track: AisTrack): AisLoitering[] {
+  if (isStationary(track)) return [];
   const events: AisLoitering[] = [];
   const pts = track.points;
   let start = -1;
@@ -264,6 +294,8 @@ export interface AisAnalysis {
   speedAnomalies: AisSpeedAnomaly[];
   /** Vessels with at least one behaviour, highest score first. */
   flagged: AisVesselResult[];
+  /** Vessels treated as stationary (likely tied up); not a risk behaviour. */
+  stationary: string[];
   /** Highest vessel score in the file. */
   riskScore: number;
 }
@@ -298,6 +330,7 @@ export function analyzeAis(text: string): AisAnalysis {
     gaps,
     speedAnomalies,
     flagged,
+    stationary: tracks.filter(isStationary).map(t => t.id),
     riskScore: flagged.length ? flagged[0].score : 0,
   };
 }

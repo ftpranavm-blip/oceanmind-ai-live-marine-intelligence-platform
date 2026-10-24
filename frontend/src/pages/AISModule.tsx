@@ -210,6 +210,7 @@ export default function AISModule() {
                         <span>Possible AIS gaps: {analysis.gaps.length}</span>
                         <span>Speed anomalies: {analysis.speedAnomalies.length}</span>
                         <span>Vessels to review: {analysis.flagged.length}</span>
+                        <span>Stationary (likely tied up): {analysis.stationary.length}</span>
                       </div>
                       {analysis.flagged.length > 0 && (
                         <div className="space-y-1 pt-1 border-t border-border/50">

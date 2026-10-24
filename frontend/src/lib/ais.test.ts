@@ -13,6 +13,7 @@ import {
   findGaps,
   findLoitering,
   findSpeedAnomalies,
+  isStationary,
   parseAisCsv,
 } from './ais';
 import { isAisAlert } from './risk';
@@ -50,6 +51,8 @@ describe('thresholds are written down', () => {
       maxReportedSpeedKn: 40,
       maxImpliedSpeedKn: 50,
       minJumpKm: 1,
+      stationaryRadiusM: 250,
+      stationaryMinHours: 12,
       scorePerBehaviour: 3.5,
     });
     expect(AIS_STATUS).toEqual({ AT_ANCHOR: 1, MOORED: 5, NOT_DEFINED: 15 });
@@ -337,5 +340,73 @@ describe('anonymised MarineCadastre sample (2026-06-30)', () => {
     expect(a.dates).toEqual({ first: '2026-06-30', last: '2026-06-30' });
     expect(a.flagged.map(v => v.id)).not.toContain('VESSEL-007');
     expect(a.flagged.map(v => v.id)).not.toContain('VESSEL-008');
+  });
+});
+
+// Stationary (likely tied up) vs loitering. Radius and duration come from the
+// Florida Keys extract of 2026-06-30 (see TESTING.md): flagged vessels split
+// into r90 <= 93 m and r90 >= 712 m with none between.
+describe('stationary vessels are not loitering', () => {
+  const at = (minutes: number) => {
+    const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mm = String(minutes % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+  // A pleasure boat at a marina: no status (Class B), speed 0, a few metres of GPS jitter.
+  const marina = (id: string, hours: number, spikes = 0) => {
+    const rows: string[] = [];
+    for (let m = 0; m <= hours * 60; m += 10) {
+      const spike = spikes > 0 && m % 300 === 150 && m / 300 < spikes;
+      rows.push(row(id, at(m), spike ? 24.57 : 24.55 + ((m / 10) % 3) * 2e-5, -81.8, 0, { status: '' }));
+    }
+    return rows;
+  };
+  // A boat circling slowly on a 300 m radius for 14 hours (one lap an hour), so only
+  // the radius, not the duration, separates it from a stationary boat.
+  const circling = (id: string) => {
+    const rows: string[] = [];
+    for (let m = 0; m <= 14 * 60; m += 5) {
+      const a = (m / 60) * 2 * Math.PI;
+      rows.push(row(id, at(m), 24.55 + (0.3 / 111) * Math.sin(a), -81.8 + (0.3 / 101) * (1 - Math.cos(a)), 0.8, { status: '' }));
+    }
+    return rows;
+  };
+
+  it('treats a marina boat seen for 18 hours within a few metres as stationary', () => {
+    const t = track(csv(...marina('V1', 18)));
+    expect(isStationary(t)).toBe(true);
+    expect(findLoitering(t)).toEqual([]);
+  });
+
+  it('ignores a few GPS spikes (uses the 90th percentile distance, not the maximum)', () => {
+    const t = track(csv(...marina('V1', 18, 2)));
+    expect(Math.max(...t.points.map(p => p.lat))).toBeCloseTo(24.57);
+    expect(isStationary(t)).toBe(true);
+  });
+
+  it('still flags possible loitering for a still boat seen for less than 12 hours', () => {
+    const t = track(csv(...marina('V1', 6)));
+    expect(isStationary(t)).toBe(false);
+    expect(findLoitering(t)).toHaveLength(1);
+  });
+
+  it('still flags possible loitering for a boat circling on a 300 m radius', () => {
+    const t = track(csv(...circling('V1')));
+    expect(isStationary(t)).toBe(false);
+    expect(findLoitering(t).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the AIS gap rule for stationary vessels', () => {
+    const rows = marina('V1', 18).filter((_, i) => i < 40 || i > 46);
+    const t = track(csv(...rows));
+    expect(isStationary(t)).toBe(true);
+    expect(findGaps(t)).toHaveLength(1);
+  });
+
+  it('lists stationary vessels in the analysis and does not flag a marina boat', () => {
+    const a = analyzeAis(csv(...marina('MARINA', 18), ...circling('CIRCLE')));
+    expect(a.stationary).toEqual(['MARINA']);
+    expect(a.flagged.map(v => v.id)).toEqual(['CIRCLE']);
+    expect(a.riskScore).toBe(3.5);
   });
 });
