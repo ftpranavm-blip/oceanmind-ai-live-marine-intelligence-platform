@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Satellite, Waves, Ship, Thermometer, Network, AlertTriangle, TrendingUp, Activity, MapPin } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Progress } from '@/components/ui/progress';
+import { averageRisk, moduleSeverityBand } from '../lib/risk';
+import { globalMarineRiskIndex } from '../lib/fusion';
 
 export default function CommandCenter() {
   const navigate = useNavigate();
@@ -21,26 +23,29 @@ export default function CommandCenter() {
   const fusionAlerts = alerts.filter((a) => a.type === 'Fusion');
 
   // Calculate Global Marine Risk Index
-  const avgSatelliteRisk = satelliteData.length > 0
-    ? satelliteData.reduce((sum, d) => sum + d.riskScore, 0) / satelliteData.length
-    : 0;
-  const avgCoralRisk = coralData.length > 0
-    ? coralData.reduce((sum, d) => sum + d.riskScore, 0) / coralData.length
-    : 0;
-  const avgAISRisk = aisData.length > 0
-    ? aisData.reduce((sum, d) => sum + d.riskScore, 0) / aisData.length
-    : 0;
-  const avgIoTRisk = iotData.length > 0
-    ? iotData.reduce((sum, d) => sum + d.riskScore, 0) / iotData.length
-    : 0;
-  const globalRiskIndex = (avgSatelliteRisk + avgCoralRisk + avgAISRisk + avgIoTRisk) / 4;
+  const avgSatelliteRisk = averageRisk(satelliteData);
+  const avgCoralRisk = averageRisk(coralData);
+  const avgAISRisk = averageRisk(aisData);
+  const avgIoTRisk = averageRisk(iotData);
+  const globalRiskIndex = globalMarineRiskIndex({
+    satellite: satelliteData,
+    coral: coralData,
+    ais: aisData,
+    iot: iotData,
+    vessels,
+  });
+  const globalRiskBand = moduleSeverityBand(globalRiskIndex);
+  // History queries return only the caller's records, so a new user has none.
+  // The demo vessels alone would otherwise show a misleading index.
+  const analysisCount = satelliteData.length + coralData.length + aisData.length + iotData.length;
+  const hasAnalyses = analysisCount > 0;
 
   const modules = [
     {
       title: 'Satellite Intelligence',
       icon: Satellite,
       path: '/satellite',
-      description: 'Live vessel tracking & MPA monitoring',
+      description: 'Vessel & MPA risk scoring (simulated)',
       color: 'from-chart-1 to-chart-2',
       image: '/assets/generated/satellite-ocean-view.dim_800x600.jpg',
       riskScore: avgSatelliteRisk,
@@ -50,7 +55,7 @@ export default function CommandCenter() {
       title: 'Coral Intelligence',
       icon: Waves,
       path: '/coral',
-      description: 'AI bleaching detection & thermal stress',
+      description: 'Bleaching & thermal stress scoring (simulated)',
       color: 'from-chart-2 to-chart-3',
       image: '/assets/generated/coral-reef-comparison.dim_800x600.jpg',
       riskScore: avgCoralRisk,
@@ -60,7 +65,7 @@ export default function CommandCenter() {
       title: 'AIS Intelligence',
       icon: Ship,
       path: '/ais',
-      description: 'Live vessel behavior & route analysis',
+      description: 'Vessel behaviour risk scoring (simulated)',
       color: 'from-chart-3 to-chart-4',
       image: '/assets/generated/ais-vessel-tracking.dim_600x400.jpg',
       riskScore: avgAISRisk,
@@ -70,7 +75,7 @@ export default function CommandCenter() {
       title: 'IoT Ocean Sensors',
       icon: Thermometer,
       path: '/iot',
-      description: 'Real-time ocean parameter monitoring',
+      description: 'Ocean parameter scoring (simulated)',
       color: 'from-chart-4 to-chart-5',
       image: '/assets/generated/iot-ocean-sensor.dim_600x400.jpg',
       riskScore: avgIoTRisk,
@@ -80,7 +85,7 @@ export default function CommandCenter() {
       title: 'Live Ocean Map',
       icon: MapPin,
       path: '/live-ocean-map',
-      description: 'Interactive vessel tracking map',
+      description: 'Map of sample vessels',
       color: 'from-chart-1 to-chart-3',
       image: '/assets/generated/global-ocean-risk-map.dim_1000x600.jpg',
       riskScore: 0,
@@ -136,20 +141,29 @@ export default function CommandCenter() {
             <CardDescription>Live aggregated risk from all intelligence modules including Fusion Engine</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-5xl font-bold text-chart-1">
-                  {globalRiskIndex.toFixed(2)}
-                </span>
-                <Badge 
-                  variant={globalRiskIndex >= 7 ? 'destructive' : 'secondary'} 
-                  className="text-lg px-4 py-2"
-                >
-                  {globalRiskIndex >= 7 ? 'Critical' : globalRiskIndex >= 4 ? 'Elevated' : 'Normal'}
-                </Badge>
+            {hasAnalyses ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-5xl font-bold text-chart-1">
+                    {globalRiskIndex.toFixed(2)}
+                  </span>
+                  <Badge 
+                    variant={globalRiskBand === 'Critical' ? 'destructive' : 'secondary'} 
+                    className="text-lg px-4 py-2"
+                  >
+                    {globalRiskBand}
+                  </Badge>
+                </div>
+                <Progress value={globalRiskIndex * 10} className="h-4" />
               </div>
-              <Progress value={globalRiskIndex * 10} className="h-4" />
-            </div>
+            ) : (
+              <div className="py-6 text-center space-y-2">
+                <p className="text-lg font-medium">No analyses yet - run one in any module</p>
+                <p className="text-sm text-muted-foreground">
+                  The index is calculated from your saved satellite, coral, AIS and IoT analyses. Pick a module below to start.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -209,9 +223,9 @@ export default function CommandCenter() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-chart-2">
-                {satelliteData.length + coralData.length + aisData.length + iotData.length}
+                {analysisCount}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Live feeds active</p>
+              <p className="text-xs text-muted-foreground mt-1">Saved analyses</p>
             </CardContent>
           </Card>
         </div>

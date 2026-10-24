@@ -1,0 +1,2 @@
+# Saved API responses used as test fixtures: keep them byte-for-byte as downloaded.
+frontend/src/lib/__fixtures__/** -text

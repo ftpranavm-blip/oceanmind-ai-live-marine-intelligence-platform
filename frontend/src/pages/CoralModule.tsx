@@ -9,27 +9,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Waves, Thermometer, AlertTriangle, Upload, Satellite } from 'lucide-react';
 import { toast } from 'sonner';
+import { isCoralAlert } from '../lib/risk';
+import { CRW_EXTRACT, crwReadingForRegion } from '../lib/crwReading';
+import {
+  changeRegion,
+  coralRisk,
+  coralSavePayload,
+  editValue,
+  initialCoralForm,
+  loadCrwReading,
+  setSimulatedReading,
+  sourceLabel,
+} from '../lib/coralForm';
 
 export default function CoralModule() {
-  const [bleachingProb, setBleachingProb] = useState('0');
-  const [thermalStress, setThermalStress] = useState('0');
+  const [form, setForm] = useState(initialCoralForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState('great_barrier_reef');
-  const [dataType, setDataType] = useState<'image' | 'sst'>('image');
-
-  // NOAA Coral Reef Watch simulation
-  const [fetchingNoaa, setFetchingNoaa] = useState(false);
 
   const saveAnalysis = useSaveCoralAnalysis();
   const { data: analyses = [], isLoading } = useGetCoralAnalysisHistory();
   const { data: coralRegions = [] } = useGetCoralRegionCoordinates();
 
-  const calculateRiskScore = () => {
-    const bleaching = parseFloat(bleachingProb) || 0;
-    const stress = parseFloat(thermalStress) || 0;
-    return Math.min((bleaching * 0.6 + stress * 0.4), 10);
-  };
+  const calculateRiskScore = () => coralRisk(form);
+  const selectRegion = (regionId: string) => setForm(f => changeRegion(f, regionId));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,7 +44,6 @@ export default function CoralModule() {
     }
 
     setImageFile(file);
-    setDataType('image');
     toast.success('Coral image uploaded. Ready for AI analysis.');
   };
 
@@ -52,7 +54,7 @@ export default function CoralModule() {
     }
 
     setAnalyzing(true);
-    toast.info('Running AI bleaching detection...');
+    toast.info('Generating simulated bleaching reading...');
 
     // Simulate AI analysis
     await new Promise(resolve => setTimeout(resolve, 2500));
@@ -60,62 +62,40 @@ export default function CoralModule() {
     const simulatedBleaching = (Math.random() * 10).toFixed(1);
     const simulatedStress = (Math.random() * 10).toFixed(1);
 
-    setBleachingProb(simulatedBleaching);
-    setThermalStress(simulatedStress);
+    setForm(f => setSimulatedReading(f, simulatedBleaching, simulatedStress));
 
     setAnalyzing(false);
-    toast.success('AI analysis complete! Bleaching probability calculated.');
+    toast.success('Simulated bleaching reading generated.');
   };
 
-  const handleNoaaFetch = async () => {
-    setFetchingNoaa(true);
-    setDataType('sst');
-    toast.info('Fetching live data from NOAA Coral Reef Watch...');
+  // Loads the bundled NOAA CRW extract (ERDDAP blocks browser requests via CORS).
+  const selectedCrw = crwReadingForRegion(form.regionId);
 
-    // Simulate NOAA API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const simulatedTemp = (26 + Math.random() * 6).toFixed(1);
-    const tempValue = parseFloat(simulatedTemp);
-    const stressValue = tempValue > 30 ? ((tempValue - 30) * 2).toFixed(1) : '0';
-
-    setThermalStress(stressValue);
-    
-    // Estimate bleaching based on temperature
-    const bleachingEstimate = tempValue > 30 ? ((tempValue - 28) * 1.5).toFixed(1) : (Math.random() * 3).toFixed(1);
-    setBleachingProb(bleachingEstimate);
-
-    setFetchingNoaa(false);
-    toast.success(`Live temperature data retrieved: ${simulatedTemp}°C`);
+  const handleCrwLoad = () => {
+    if (!selectedCrw) {
+      toast.error('No NOAA CRW reading for this region in the bundled extract');
+      return;
+    }
+    setForm(loadCrwReading);
+    toast.success(`Loaded ${selectedCrw.label}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const riskScore = calculateRiskScore();
-    const alertStatus = riskScore >= 6;
-
-    const selectedRegionData = coralRegions.find(r => r.id === selectedRegion);
-    const regionName = selectedRegionData?.name || selectedRegion;
+    const selectedRegionData = coralRegions.find(r => r.id === form.regionId);
+    const regionName = selectedRegionData?.name || form.regionId;
+    const payload = coralSavePayload(form, regionName, imageFile ? imageFile.name : null);
 
     try {
-      await saveAnalysis.mutateAsync({
-        imageId: imageFile ? imageFile.name : null,
-        bleachingProbability: parseFloat(bleachingProb) || 0,
-        thermalStress: parseFloat(thermalStress) || 0,
-        riskScore,
-        alertStatus,
-        region: regionName,
-        dataType: dataType === 'image' ? 'Image Analysis' : 'SST Data',
-      });
+      await saveAnalysis.mutateAsync(payload);
 
-      if (alertStatus) {
+      if (payload.alertStatus) {
         toast.success('Reef emergency alert automatically generated!');
       } else {
         toast.success('Coral analysis saved successfully');
       }
 
-      setBleachingProb('0');
-      setThermalStress('0');
+      setForm(f => initialCoralForm(f.regionId));
       setImageFile(null);
     } catch (error) {
       toast.error('Failed to save coral analysis');
@@ -133,7 +113,7 @@ export default function CoralModule() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Coral Intelligence Module</h1>
-            <p className="text-muted-foreground">Live AI bleaching detection & NOAA thermal stress monitoring</p>
+            <p className="text-muted-foreground">Bleaching and thermal stress risk scoring from NOAA Coral Reef Watch data or simulated readings</p>
           </div>
         </div>
 
@@ -152,8 +132,8 @@ export default function CoralModule() {
           {/* Analysis Input */}
           <Card>
             <CardHeader>
-              <CardTitle>Live Coral Analysis</CardTitle>
-              <CardDescription>Upload coral images or fetch NOAA live data</CardDescription>
+              <CardTitle>Coral Analysis</CardTitle>
+              <CardDescription>Load a dated NOAA Coral Reef Watch reading, or generate a simulated image reading (no image model is used)</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="upload" className="space-y-4">
@@ -164,14 +144,14 @@ export default function CoralModule() {
                   </TabsTrigger>
                   <TabsTrigger value="noaa">
                     <Satellite className="w-4 h-4 mr-2" />
-                    NOAA Live Data
+                    NOAA CRW
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="upload" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="coralRegion">Coral Reef Region</Label>
-                    <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                    <Select value={form.regionId} onValueChange={selectRegion}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -205,14 +185,14 @@ export default function CoralModule() {
                     disabled={!imageFile || analyzing}
                     className="w-full"
                   >
-                    {analyzing ? 'Analyzing...' : 'Run AI Analysis'}
+                    {analyzing ? 'Generating...' : 'Generate Simulated Reading'}
                   </Button>
                 </TabsContent>
 
                 <TabsContent value="noaa" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="noaaRegion">Coral Reef Region</Label>
-                    <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                    <Select value={form.regionId} onValueChange={selectRegion}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -227,36 +207,47 @@ export default function CoralModule() {
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                    <div className="font-medium">NOAA Coral Reef Watch API</div>
+                    <div className="font-medium">NOAA Coral Reef Watch, data from {CRW_EXTRACT.date}</div>
                     <div className="text-xs text-muted-foreground">
-                      Real-time sea surface temperature and thermal stress data
+                      Bundled extract of the daily 5 km products (browsers cannot call NOAA ERDDAP directly).
+                      Refresh with scripts/update-crw-extract.mts.
                     </div>
+                    {selectedCrw ? (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 text-xs">
+                        <span>Degree Heating Weeks: {selectedCrw.reading.dhw.toFixed(2)} °C-weeks</span>
+                        <span>Bleaching Alert Area: level {selectedCrw.reading.baa} of 4</span>
+                        <span>HotSpot: {selectedCrw.reading.hotspot.toFixed(2)} °C</span>
+                        <span>SST anomaly: {selectedCrw.reading.sstAnomaly.toFixed(2)} °C</span>
+                        <span className="col-span-2 text-muted-foreground">
+                          Cell {selectedCrw.reading.cell.lat}, {selectedCrw.reading.cell.lon}
+                          {selectedCrw.reading.distanceKm > 0 ? ` (nearest water cell, ${selectedCrw.reading.distanceKm.toFixed(1)} km away)` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground pt-2">No reading for this region in the extract.</div>
+                    )}
                   </div>
 
-                  <Button
-                    onClick={handleNoaaFetch}
-                    disabled={fetchingNoaa}
-                    className="w-full"
-                  >
-                    {fetchingNoaa ? 'Fetching...' : 'Fetch Live Temperature Data'}
+                  <Button onClick={handleCrwLoad} disabled={!selectedCrw} className="w-full">
+                    Load NOAA CRW Reading
                   </Button>
                 </TabsContent>
               </Tabs>
 
               <form onSubmit={handleSubmit} className="space-y-4 mt-6 pt-6 border-t">
                 <div className="space-y-2">
-                  <Label htmlFor="bleachingProb">Bleaching Probability (0-10)</Label>
+                  <Label htmlFor="bleachingProb">Bleaching Score (0-10)</Label>
                   <Input
                     id="bleachingProb"
                     type="number"
                     min="0"
                     max="10"
                     step="0.1"
-                    value={bleachingProb}
-                    onChange={(e) => setBleachingProb(e.target.value)}
+                    value={form.bleaching}
+                    onChange={(e) => setForm(f => editValue(f, 'bleaching', e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    AI-based bleaching detection score
+                    From CRW: max(Bleaching Alert Area level x 2.5, 7.5 at DHW &gt;= 4, 10 at DHW &gt;= 8)
                   </p>
                 </div>
 
@@ -268,18 +259,22 @@ export default function CoralModule() {
                     min="0"
                     max="10"
                     step="0.1"
-                    value={thermalStress}
-                    onChange={(e) => setThermalStress(e.target.value)}
+                    value={form.thermalStress}
+                    onChange={(e) => setForm(f => editValue(f, 'thermalStress', e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Based on NOAA temperature data
+                    From CRW: min(Degree Heating Weeks / 8, 1) x 10
                   </p>
                 </div>
 
                 <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-2 text-sm">
+                    <span className="text-muted-foreground">Source:</span>
+                    <Badge variant="outline">{sourceLabel(form.source)}</Badge>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-medium">Calculated Risk Score:</span>
-                    <Badge variant={calculateRiskScore() >= 6 ? 'destructive' : 'secondary'}>
+                    <Badge variant={isCoralAlert(calculateRiskScore()) ? 'destructive' : 'secondary'}>
                       {calculateRiskScore().toFixed(1)} / 10
                     </Badge>
                   </div>
@@ -302,7 +297,7 @@ export default function CoralModule() {
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : analyses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No analyses yet. Upload a coral image or fetch NOAA data to start.
+                  No analyses yet. Load a NOAA CRW reading or generate a simulated one to start.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
@@ -316,7 +311,7 @@ export default function CoralModule() {
                           <Waves className="w-4 h-4 text-chart-2" />
                           <span className="font-medium text-sm">{analysis.region}</span>
                         </div>
-                        <Badge variant={analysis.riskScore >= 6 ? 'destructive' : 'secondary'}>
+                        <Badge variant={isCoralAlert(analysis.riskScore) ? 'destructive' : 'secondary'}>
                           Risk: {analysis.riskScore.toFixed(1)}
                         </Badge>
                       </div>

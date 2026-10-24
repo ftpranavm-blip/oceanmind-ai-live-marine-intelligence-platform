@@ -1,0 +1,164 @@
+{
+  "source": "NOAA Coral Reef Watch daily 5 km products via NOAA CoastWatch ERDDAP (coastwatch.noaa.gov)",
+  "date": "2026-10-15",
+  "retrieved": "2026-10-22",
+  "datasets": {
+    "dhw": "noaacrwdhwDaily",
+    "hotspot": "noaacrwhotspotDaily",
+    "ssta": "noaacrwsstanomalyDaily",
+    "baa": "noaacrwbaa7dDaily"
+  },
+  "citation": "Data: NOAA Coral Reef Watch (https://coralreefwatch.noaa.gov)",
+  "regions": {
+    "great_barrier_reef": {
+      "requested": {
+        "lat": -18.2871,
+        "lon": 147.6992
+      },
+      "cell": {
+        "lat": -18.275,
+        "lon": 147.675
+      },
+      "distanceKm": 0,
+      "dhw": 0,
+      "hotspot": -2.96,
+      "sstAnomaly": -0.09,
+      "baa": 0
+    },
+    "coral_triangle": {
+      "requested": {
+        "lat": 0,
+        "lon": 120
+      },
+      "cell": {
+        "lat": 0.025,
+        "lon": 120.075
+      },
+      "distanceKm": 5.56,
+      "dhw": 0,
+      "hotspot": 0.31,
+      "sstAnomaly": 0.65,
+      "baa": 1
+    },
+    "maldives": {
+      "requested": {
+        "lat": 3.2028,
+        "lon": 73.2207
+      },
+      "cell": {
+        "lat": 3.225,
+        "lon": 73.225
+      },
+      "distanceKm": 0,
+      "dhw": 0,
+      "hotspot": 0.67,
+      "sstAnomaly": 1.94,
+      "baa": 1
+    },
+    "andaman_nicobar_islands": {
+      "requested": {
+        "lat": 11.7401,
+        "lon": 92.6586
+      },
+      "cell": {
+        "lat": 11.725,
+        "lon": 92.775
+      },
+      "distanceKm": 10.887,
+      "dhw": 0,
+      "hotspot": 0.28,
+      "sstAnomaly": 1.8,
+      "baa": 1
+    },
+    "hawaii": {
+      "requested": {
+        "lat": 21.3099,
+        "lon": -157.8581
+      },
+      "cell": {
+        "lat": 21.275,
+        "lon": -157.875
+      },
+      "distanceKm": 5.56,
+      "dhw": 0,
+      "hotspot": -0.15,
+      "sstAnomaly": -0.1,
+      "baa": 1
+    },
+    "caribbean_reefs": {
+      "requested": {
+        "lat": 18,
+        "lon": -75
+      },
+      "cell": {
+        "lat": 18.025,
+        "lon": -74.975
+      },
+      "distanceKm": 0,
+      "dhw": 5.29,
+      "hotspot": 0.98,
+      "sstAnomaly": 1.1500000000000001,
+      "baa": 3
+    },
+    "florida_keys": {
+      "requested": {
+        "lat": 24.5551,
+        "lon": -81.78
+      },
+      "cell": {
+        "lat": 24.575,
+        "lon": -81.775
+      },
+      "distanceKm": 0,
+      "dhw": 14.83,
+      "hotspot": 0,
+      "sstAnomaly": 1.99,
+      "baa": 1
+    },
+    "seychelles": {
+      "requested": {
+        "lat": -4.6796,
+        "lon": 55.492
+      },
+      "cell": {
+        "lat": -4.675,
+        "lon": 55.425
+      },
+      "distanceKm": 5.541,
+      "dhw": 0,
+      "hotspot": -0.48,
+      "sstAnomaly": 1.42,
+      "baa": 0
+    },
+    "red_sea_reefs": {
+      "requested": {
+        "lat": 20,
+        "lon": 38
+      },
+      "cell": {
+        "lat": 20.025,
+        "lon": 38.025
+      },
+      "distanceKm": 0,
+      "dhw": 3.2,
+      "hotspot": 1.18,
+      "sstAnomaly": 1.7,
+      "baa": 2
+    },
+    "persian_gulf": {
+      "requested": {
+        "lat": 26,
+        "lon": 52
+      },
+      "cell": {
+        "lat": 26.025,
+        "lon": 52.025
+      },
+      "distanceKm": 0,
+      "dhw": 9.1,
+      "hotspot": 0.18,
+      "sstAnomaly": 2.63,
+      "baa": 1
+    }
+  }
+}

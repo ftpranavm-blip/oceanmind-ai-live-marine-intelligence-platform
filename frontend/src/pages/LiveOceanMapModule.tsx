@@ -5,6 +5,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MapPin, Waves, Thermometer, Droplets, Wind, Navigation } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { vesselRiskBand, type VesselRiskBand } from '../lib/risk';
+
+const VESSEL_BAND_COLORS: Record<VesselRiskBand, string> = {
+  Critical: '#ef4444',
+  High: '#f97316',
+  Moderate: '#eab308',
+  Low: '#22c55e',
+};
+
+const VESSEL_BAND_BADGE: Record<VesselRiskBand, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  Critical: 'destructive',
+  High: 'default',
+  Moderate: 'secondary',
+  Low: 'outline',
+};
 
 export default function LiveOceanMapModule() {
   const { data: mapData, isLoading } = useGetMapData();
@@ -98,16 +113,7 @@ export default function LiveOceanMapModule() {
       const existingMarker = markersRef.current.get(vessel.id);
       
       // Determine color based on risk score
-      let color: string;
-      if (vessel.riskScore >= 0.75) {
-        color = '#ef4444'; // Red - Critical
-      } else if (vessel.riskScore >= 0.5) {
-        color = '#f97316'; // Orange - High
-      } else if (vessel.riskScore >= 0.25) {
-        color = '#eab308'; // Yellow - Moderate
-      } else {
-        color = '#22c55e'; // Green - Low
-      }
+      const color = VESSEL_BAND_COLORS[vesselRiskBand(vessel.riskScore)];
 
       if (existingMarker) {
         // Update existing marker position smoothly
@@ -327,19 +333,10 @@ export default function LiveOceanMapModule() {
     }
   }, [showCurrents, currOverlays, leafletLoaded]);
 
-  const getRiskLabel = (score: number): string => {
-    if (score >= 0.75) return 'Critical';
-    if (score >= 0.5) return 'High';
-    if (score >= 0.25) return 'Moderate';
-    return 'Low';
-  };
+  const getRiskLabel = (score: number): string => vesselRiskBand(score);
 
-  const getRiskColor = (score: number): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (score >= 0.75) return 'destructive';
-    if (score >= 0.5) return 'default';
-    if (score >= 0.25) return 'secondary';
-    return 'outline';
-  };
+  const getRiskColor = (score: number): 'default' | 'secondary' | 'destructive' | 'outline' =>
+    VESSEL_BAND_BADGE[vesselRiskBand(score)];
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -411,7 +408,7 @@ export default function LiveOceanMapModule() {
               <Navigation className="w-5 h-5" />
               Live Vessel Tracking
             </CardTitle>
-            <CardDescription>Real-time vessel positions with risk assessment • Auto-refresh every 45 seconds</CardDescription>
+            <CardDescription>Sample vessel data (fixed demo vessels from the backend) with risk assessment • Refreshes every 45 seconds</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="relative aspect-[16/9] rounded-lg overflow-hidden border border-border">
@@ -474,7 +471,7 @@ export default function LiveOceanMapModule() {
           <Card>
             <CardHeader>
               <CardTitle>Tracked Vessels</CardTitle>
-              <CardDescription>Live vessel data with risk assessment</CardDescription>
+              <CardDescription>Sample vessel data with risk assessment</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
