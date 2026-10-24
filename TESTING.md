@@ -311,6 +311,7 @@ behaviour to review, not wrongdoing.
 | Possible loitering | reported speed < 1 kn for >= 60 min, staying within 1 km of the first point; a missing speed, a gap over 30 min or leaving the radius ends the stretch |
 | Possible AIS gap | > 30 min between two consecutive reports of one vessel; time before a vessel's first or after its last report is not a gap |
 | Speed anomaly | reported speed > 40 kn (not for high-speed craft, vessel types 40-49), or implied speed between consecutive points > 50 kn when they are > 1 km apart |
+| Stationary (likely tied up), added in the follow-ups | seen >= 12 h with 90% of positions within 250 m of the median position; such a vessel gets no possible loitering (gaps and speed anomalies still apply) |
 | Risk score (0-10) | 3.5 per distinct behaviour type on a vessel, capped at 10; the file's score is its highest vessel. One type gives 3.5, two give 7.0 (the AIS alert threshold the backend also uses), three give 10 |
 
 **Decisions.**
@@ -347,9 +348,11 @@ behaviour to review, not wrongdoing.
   craft) reports 41.0-41.6 kn, which such a boat can do: a speed anomaly to
   review, not an error.
 
-**Sample results:** 8 vessels, 1,348 positions after 1 duplicate timestamp,
-4 possible loitering, 11 possible AIS gaps, 5 speed anomalies, 6 vessels to
-review, risk 7.0.
+**Sample results** (before the stationary rule): 8 vessels, 1,348 positions
+after 1 duplicate timestamp, 4 possible loitering, 11 possible AIS gaps,
+5 speed anomalies, 6 vessels to review, risk 7.0. After the stationary rule:
+1 possible loitering, 1 stationary vessel, still 6 vessels to review and
+risk 7.0.
 
 **Browser check** (preview harness, `frontend/preview/ais.html`).
 - **Sample:** the button gave the label "MarineCadastre AIS sample (derived,
@@ -365,8 +368,7 @@ review, risk 7.0.
   - the sample uploaded as a file was labelled "Uploaded AIS CSV, data from
     2026-06-30".
 
-**Not changed:** the Fusion page still labels a correlation "Illegal Fishing"
-and its recommendations use that phrase.
+**Fusion wording:** changed in the follow-ups below (a457259).
 
 | Check | After IoT | After AIS |
 | --- | --- | --- |
@@ -377,3 +379,118 @@ and its recommendations use that phrase.
 | `tsc --noEmit` | 0 errors | 0 errors |
 | ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
 | `vite build` | passes (JS 1.8 MB, dist 4.9 MB) | passes (JS 1.9 MB, dist 5.1 MB; the sample is bundled) |
+
+## Phase 2 follow-ups (measured 2026-10-24)
+
+### Fusion wording (a457259)
+
+- **Labels changed:** the AIS + satellite correlation is now labelled
+  "Suspicious vessel activity (AIS + satellite)" (the metric name, the alert
+  type and the recommendation's risk type). The recommendation summary says
+  the behaviour is to review, not evidence of wrongdoing, and its four steps
+  are review steps instead of enforcement actions.
+- **Stored identifiers unchanged:** correlationType `illegal_fishing`,
+  scenario `illegal_fishing`, and alert ids `fusion_illegal_fishing_<time>`.
+- **Stored text that changes for new records only:** a fusion alert's
+  `source` text ("Fusion Engine: <type> | ...") and a snapshot's stored
+  recommendation text. Already-saved records keep "Illegal Fishing".
+- **A bug avoided by the change:** the snapshot save looked metrics up by
+  display name, so renaming the label alone would have stored
+  `satelliteAIS = 0`. Metrics now carry a stable `key`, and
+  `correlationsFromMetrics()` maps snapshot fields by key. 7 tests failed
+  before the change.
+- **The phrase is still used elsewhere:** the Alerts page offers "Illegal
+  Fishing" as an alert type (stored as the alert `type`), the Satellite page
+  uses it in a toast, and `spec.md`'s product brief mentions it. These were
+  not changed.
+
+### Stationary vessels vs possible loitering (87d225b)
+
+**What the data showed.** Every vessel the rules flagged in the Florida Keys
+extract of 2026-06-30 (a scratch file with real MMSIs, not committed) was
+measured for:
+- its distance from its median position (the 90th percentile, "r90", and the
+  maximum),
+- the hours it was seen,
+- the share of points below 1 kn.
+
+Of the 91 vessels flagged for possible loitering:
+
+| r90 | Vessels | Median hours seen | Median share of points below 1 kn |
+| --- | --- | --- | --- |
+| 0-10 m | 46 | 23.8 | 1.00 |
+| 10-25 m | 10 | 23.9 | 1.00 |
+| 25-50 m | 5 | 23.9 | 1.00 |
+| 50-100 m | 1 (93 m) | 12.3 | 0.98 |
+| 100-500 m | **0** | - | - |
+| 500-1000 m | 2 | 24.0 | 0.98 |
+| 1-5 km | 3 | 16.2-20.7 | 0.82-0.93 |
+| > 5 km | 24 | 15.4 | 0.45 |
+
+The low-r90 group is almost all sailing (type 36) and pleasure craft (type
+37), plus two type 55 vessels: boats that are very likely tied up. Several
+have r90 of 4-5 m but a maximum near 175 m, which is GPS spikes, so the rule
+uses the 90th percentile rather than the maximum.
+
+**Rule** (`AIS_THRESHOLDS.stationaryRadiusM`, `stationaryMinHours` in
+`frontend/src/lib/ais.ts`). A vessel seen for at least 12 hours, with 90% of
+its positions within 250 m of its median position, is stationary (likely
+tied up) and gets no possible loitering. AIS gaps and speed anomalies still
+apply, and the risk score rule and backend threshold are unchanged.
+- **Radius (250 m), from the data:** no flagged vessel had r90 between 93 m
+  and 712 m. 250 m sits inside that empty band, and 100 m, 250 m and 500 m
+  gave identical results.
+- **Duration (12 h), not from the data:** the tied-up group's hours ranged
+  from 1.2 h to 24 h with no clean break. 12 h is "most of the day" for a
+  one-day file. Sensitivity at 250 m:
+
+| Duration | 6 h | 8 h | 12 h | 16 h | 20 h |
+| --- | --- | --- | --- | --- | --- |
+| Loitering-flagged vessels now stationary | 60 | 59 | 58 | 52 | 50 |
+| No longer flagged at all | 39 | 39 | 39 | 37 | 36 |
+
+**These thresholds were tuned on one day (2026-06-30) in one area (a Florida
+Keys box, mostly recreational traffic) and may not generalise to other
+areas, seasons or vessel mixes.**
+
+**Tests:**
+- **Stationary:** a marina boat seen 18 h within a few metres, including with
+  two GPS spikes 2 km away.
+- **Still possible loitering:** the same still boat seen for only 6 h, and a
+  boat circling on a 300 m radius for 14 h (separated by radius, not
+  duration).
+- **Rules that still apply:** a stationary boat's AIS gap is still reported.
+- **Analysis output:** `analyzeAis` lists stationary vessels separately.
+
+**Before and after (same files, previous vs new `lib/ais.ts`):**
+
+| Florida Keys extract, 200 vessels | Before | After |
+| --- | --- | --- |
+| Vessels flagged (to review) | 120 | 81 |
+| Vessels with possible loitering | 91 | 33 |
+| Possible loitering events | 136 | 51 |
+| Possible AIS gaps | 195 | 195 |
+| Speed anomalies | 12 | 12 |
+| Vessels at score 7.0 / 3.5 | 35 / 85 | 16 / 65 |
+| File risk score | 7 | 7 |
+| Stationary (likely tied up) | - | 66 |
+
+39 vessels are no longer flagged, and 19 are still flagged with a lower
+score (for gaps). The 66 stationary vessels are the 58 previously flagged for
+loitering plus 8 that were never flagged (mostly moored).
+
+On the committed sample: possible loitering 4 -> 1, stationary 0 -> 1
+(VESSEL-001, seen 14.9 h within 2 m, now 3.5 for its gaps instead of 7.0),
+vessels to review 6 -> 6, risk 7.0 -> 7.0. Checked in the preview harness:
+the AIS page shows "Possible loitering: 1" and "Stationary (likely tied up):
+1".
+
+| Check | After AIS | After follow-ups |
+| --- | --- | --- |
+| Tests | 236 passing (16 files) | 249 passing, 0 failing (16 files) |
+| Coverage, `lib/risk.ts` + `lib/fusion.ts` | 93.57% stmts/lines, 96.34% branches, 96.87% funcs | 93.99% stmts/lines, 95.34% branches, 97.05% funcs |
+| Coverage, `lib/ais.ts` | 100% lines, 90.59% branches | 100% lines, 91.66% branches |
+| Coverage, all of `frontend/src` (excl. `components/ui`, `declarations`, `test-utils`, tests) | 25.3% lines (1495/5907) | 25.69% lines (1523/5928) |
+| `tsc --noEmit` | 0 errors | 0 errors |
+| ESLint | 0 errors, 3 warnings | 0 errors, 3 warnings |
+| `vite build` | passes (JS 1.9 MB) | passes (JS 1.9 MB) |
